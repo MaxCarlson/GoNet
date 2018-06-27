@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 
 class Net(nn.Module):
@@ -48,8 +49,14 @@ epochs = 10
 for epoch in range(epochs):
     #for stuff in batch...:
 
-    data = np.zeros((1, 1, 32, 32))
-    target = np.ones((1, 10))
+    dataNp = np.zeros((1, 1, 32, 32))
+    targetNp = np.ones((1, 10))
+
+    data = Variable(torch.from_numpy(dataNp).float())
+    data = data.view(-1, 1, 32, 32)
+
+    target = Variable(torch.from_numpy(targetNp).long())
+    
 
     optimizer.zero_grad()
     netOut = net(data)
