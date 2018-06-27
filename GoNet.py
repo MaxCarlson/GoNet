@@ -37,35 +37,41 @@ class Net(nn.Module):
             num_features *= s
         return num_features
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(device)
 
 net = Net()
+net.to(device)
 print(net)
 
 optimizer = torch.optim.SGD(net.parameters(), lr=0.0018, momentum=0.9)
 criterion = nn.CrossEntropyLoss()
 
-epochs = 100
+epochs = 1000
 
 for epoch in range(epochs):
     #for stuff in batch...:
 
-    dataNp = np.zeros((1, 1, 32, 32))
-    targetNp = np.ones((1))
+    dataNp = np.zeros((200, 1, 32, 32))
+    targetNp = np.ones((200))
 
     data = Variable(torch.from_numpy(dataNp).float())
+    data = data.to(device)
 
     # Target has to be indicies of the classification problem
     target = Variable(torch.from_numpy(targetNp).long())
+    target = target.to(device)
     
 
     optimizer.zero_grad()
     netOut = net(data)
     loss = criterion(netOut, target)
+    print('loss', loss)
     loss.backward()
     optimizer.step()
 
 X = np.zeros((1, 1, 32, 32))
-X = torch.from_numpy(X).float()
+X = torch.from_numpy(X).float().to(device)
 pred = net(X)
 
 print(pred)
