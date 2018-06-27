@@ -27,7 +27,7 @@ class Net(nn.Module):
         x = x.view(-1, self.num_flat_features(x))
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = F.softmax(self.fc3(x))
         return x
 
     def num_flat_features(self, x):
@@ -42,19 +42,19 @@ net = Net()
 print(net)
 
 optimizer = torch.optim.SGD(net.parameters(), lr=0.0018, momentum=0.9)
-criterion = nn.NLLLoss()
+criterion = nn.CrossEntropyLoss()
 
-epochs = 10
+epochs = 100
 
 for epoch in range(epochs):
     #for stuff in batch...:
 
     dataNp = np.zeros((1, 1, 32, 32))
-    targetNp = np.ones((1, 10))
+    targetNp = np.ones((1))
 
     data = Variable(torch.from_numpy(dataNp).float())
-    data = data.view(-1, 1, 32, 32)
 
+    # Target has to be indicies of the classification problem
     target = Variable(torch.from_numpy(targetNp).long())
     
 
@@ -63,5 +63,11 @@ for epoch in range(epochs):
     loss = criterion(netOut, target)
     loss.backward()
     optimizer.step()
+
+X = np.zeros((1, 1, 32, 32))
+X = torch.from_numpy(X).float()
+pred = net(X)
+
+print(pred)
 
     
