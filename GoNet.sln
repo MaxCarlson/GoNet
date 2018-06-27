@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2035
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "GoNet", "GoNet.pyproj", "{B2377EC4-6FAA-42F2-96F8-E1CAAEF0F86C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B2377EC4-6FAA-42F2-96F8-E1CAAEF0F86C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2377EC4-6FAA-42F2-96F8-E1CAAEF0F86C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {15049A03-C3BB-4BAC-B97A-7B01B7226EDF}
+	EndGlobalSection
+EndGlobal
