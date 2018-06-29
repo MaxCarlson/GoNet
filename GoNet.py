@@ -35,7 +35,7 @@ def goNet(input, filters, outSize):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 10), batchSize)
+    gen = Generator(featurePath, labelPath, (0, 15), batchSize)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) #, dynamic_axes=input_dynamic_axes
@@ -55,13 +55,12 @@ def trainNet():
 
     g = gen.generator()
     for epoch in range(maxEpochs):
-        sampleCount = 0
+        miniBatches = 0
 
-        while sampleCount < batchSize:
+        while miniBatches < batchSize:
             X, Y = next(g)
-            sampleCount += minibatchSize # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
+            miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
 
-            #train_summary = ce.train((X, Y), parameter_learners=[learner], callbacks=[progressPrinter])
             trainer.train_minibatch({inputVar : X, labelVar : Y})
        
         trainer.summarize_training_progress()

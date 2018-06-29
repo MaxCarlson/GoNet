@@ -142,6 +142,7 @@ class Generator():
                 i += 1
 
     # Count the number of samples for each file we're using
+    # Getting a total # and using that to determine how many mini-batches we need
     def stepsPerEpoch(self):
 
         featureList = self.shapeFileList(os.listdir(self.featurePath))
