@@ -1,6 +1,7 @@
 import os
 import random
 import numpy as np
+import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 #import multiprocessing, threading, queue
 
@@ -25,8 +26,12 @@ class Generator():
         m = np.shape(YCol)[0]
         Y = YCol[0:m, 0]
         C = YCol[0:m, 1]
-        #Y = tf.keras.utils.to_categorical(Y, BoardSize)
 
+        # TODO: Figure out how to use scipy compressed catagorical here
+        #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
+        #Y = scipy.sparse.csc_matrix(Y, shape=(minibatchSize, BoardSize))
+        
+        Y = tf.keras.utils.to_categorical(Y, BoardSize)
         X = np.zeros((m, BoardDepth, BoardLength, BoardLength))
 
         self.setColorLayer(X, C, m)
@@ -130,9 +135,7 @@ class Generator():
 
             X, Y, roll = self.getNextChunk(XX, YY, m, roll)
 
-
-            #np.swapaxes(X, 0, 3)
-            yield X, Y
+            yield X.astype(np.float32), Y.astype(np.float32)
 
             mi += 1
             if mi >= fileLoadsPb:
@@ -152,4 +155,4 @@ class Generator():
             X, Y = self.extractNpy(featurePath, labelPath)
             count += np.shape(Y)[0]
 
-        return count / self.batchSize
+        return count // self.batchSize

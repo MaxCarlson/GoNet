@@ -6,11 +6,15 @@ from cntk.initializer import he_normal, normal
 from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
+import scipy
 
+#import cntk.tests.test_utils
+#cntk.tests.test_utils.set_device_from_pytest_env() # (only needed for CNTK internal build system)
 
+batchSize = 512
+maxEpochs = 100
 featurePath = "./data/features"
 labelPath = "./data/labels"
-
 
 def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
     c = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
@@ -31,6 +35,8 @@ def goNet(input, filters, outSize):
 
 def trainNet():
     
+    gen = Generator(featurePath, labelPath, (0, 10), batchSize)
+
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) #, dynamic_axes=input_dynamic_axes
 
@@ -40,11 +46,29 @@ def trainNet():
     ce = cntk.cross_entropy_with_softmax(net, labelVar)
     pe = cntk.classification_error(net, labelVar)
 
-    minibatchSize = 10
+    minibatchSize = gen.stepsPerEpoch()
 
     learner = cntk.adam(net.parameters, 0.0018, 0.9, minibatch_size=minibatchSize)
 
-    trainer = cntk.Trainer(net, (ce, pe), learner)
+    progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
+    trainer = cntk.Trainer(net, (ce, pe), learner, progressPrinter)
+
+    g = gen.generator()
+    for epoch in range(maxEpochs):
+        sampleCount = 0
+
+        while sampleCount < batchSize:
+            X, Y = next(g)
+            sampleCount += minibatchSize # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
+
+            #train_summary = ce.train((X, Y), parameter_learners=[learner], callbacks=[progressPrinter])
+            trainer.train_minibatch({inputVar : X, labelVar : Y})
+       
+        trainer.summarize_training_progress()
+            
+
+        
 
 
 trainNet()
+
