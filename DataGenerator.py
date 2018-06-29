@@ -1,8 +1,6 @@
 import os
-import keras
 import random
 import numpy as np
-import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 #import multiprocessing, threading, queue
 
@@ -27,7 +25,7 @@ class Generator():
         m = np.shape(YCol)[0]
         Y = YCol[0:m, 0]
         C = YCol[0:m, 1]
-        Y = tf.keras.utils.to_categorical(Y, BoardSize)
+        #Y = tf.keras.utils.to_categorical(Y, BoardSize)
 
         X = np.zeros((m, BoardDepth, BoardLength, BoardLength))
 
