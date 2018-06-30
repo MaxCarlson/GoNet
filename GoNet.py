@@ -36,15 +36,26 @@ def goNet(input, filters, outSize):
     c0 = Conv(input, (5, 5), filters, padding=True)
     c1 = Conv(c0, (3, 3), filters)
     c2 = Conv(c1, (3, 3), filters, padding=True)
+    c3 = Conv(c2, (3, 3), filters, padding=True)
+    c4 = Conv(c3, (3, 3), filters, padding=True)
 
-    pool = MaxPooling((2,2))(c2)
+    pool = MaxPooling((2,2))(c4)
     z = DenseL(pool, outSize)
 
     return z
 
+# Prints the nets accuracy on whatever inputs are given
+# 
+def printAccuracy(net, X, Y):
+    outs = net(X)
+    pred = np.argmax(Y, 1)
+    indx = np.argmax(outs, 1)
+    same = pred == indx
+    print("Accuracy %", np.sum(same)/batchSize*100)
+
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 4), batchSize)
+    gen = Generator(featurePath, labelPath, (0, 25), batchSize)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) 
@@ -53,7 +64,7 @@ def trainNet():
    
     # Loss and metric
     loss = cntk.cross_entropy_with_softmax(net, labelVar)
-    acc = cntk.classification_error(net, labelVar)
+    acc  = cntk.classification_error(net, labelVar)
     
     minisPerBatch = gen.stepsPerEpoch()
     learner = cntk.adam(net.parameters, 0.0018, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
@@ -62,6 +73,7 @@ def trainNet():
     trainer = cntk.Trainer(net, (loss, acc), learner, progressPrinter)
 
     g = gen.generator()
+    X, Y = np.ones(1), np.ones(1)
     for epoch in range(maxEpochs):
         
         miniBatches = 0
@@ -73,7 +85,7 @@ def trainNet():
 
        
         trainer.summarize_training_progress()
-            
+        printAccuracy(net, X, Y)
 
         
 
