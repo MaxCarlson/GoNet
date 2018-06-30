@@ -19,8 +19,9 @@ labelPath = "./data/labels"
 def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
     c = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     b = BatchNormalization(map_rank=1, normalization_time_constant=4096)(c)
+    d = Dropout(0.2)(b)
     # Add dropout
-    return relu(b)
+    return relu(d)
 
 def goNet(input, filters, outSize):
     
