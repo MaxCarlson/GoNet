@@ -18,21 +18,27 @@ labelPath = "./data/labels"
 
 def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
     c = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
-    b = BatchNormalization(map_rank=1, normalization_time_constant=4096)(c)
-    d = Dropout(0.2)(b)
+    b = BatchNormalization()(c) #map_rank=1, normalization_time_constant=4096
+    do = Dropout(0.2)(b)
     # Add dropout
-    return relu(d)
+    return relu(do)
+
+def DenseL(input, outSize):
+    d = Dense(outSize)(input)
+    b = BatchNormalization()(d)
+    do = Dropout(0.15)(b)
+    return relu(do)
 
 def goNet(input, filters, outSize):
     
     # TODO: Look into what this padding turns out to actually pad to
-    # See if we can get padding similar to AlphaGo's
-    conv = Conv(input, (5, 5), filters, padding=True)
-    c1  = Conv(conv, (3, 3), filters)
-    c2 = Conv(c1, (3,3), filters, padding=True)
+    # See if we can get padding similar to AlphaGo's, i.e. pad board to 23x23
+    c0 = Conv(input, (5, 5), filters, padding=True)
+    c1 = Conv(c0, (3, 3), filters)
+    c2 = Conv(c1, (3, 3), filters, padding=True)
 
     pool = MaxPooling((2,2))(c2)
-    z = Dense(outSize)(pool)
+    z = DenseL(pool, outSize)
 
     return z
 
@@ -41,20 +47,18 @@ def trainNet():
     gen = Generator(featurePath, labelPath, (0, 4), batchSize)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
-    labelVar = cntk.ops.input_variable(BoardSize, np.float32) #, dynamic_axes=input_dynamic_axes
+    labelVar = cntk.ops.input_variable(BoardSize, np.float32) 
 
     net = goNet(inputVar, 64, BoardSize)
    
     # Loss and metric
     loss = cntk.cross_entropy_with_softmax(net, labelVar)
-    #loss = cntk.squared_error(net, labelVar)
     acc = cntk.classification_error(net, labelVar)
     
     minisPerBatch = gen.stepsPerEpoch()
-
-    learner = cntk.adam(net.parameters, 0.0018, 0.9, minibatch_size=None)
-
+    learner = cntk.adam(net.parameters, 0.0018, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
+    
     trainer = cntk.Trainer(net, (loss, acc), learner, progressPrinter)
 
     g = gen.generator()
