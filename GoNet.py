@@ -8,10 +8,6 @@ from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 import scipy
 
-
-#import cntk.tests.test_utils
-#cntk.tests.test_utils.set_device_from_pytest_env() # (only needed for CNTK internal build system)
-
 batchSize = 512
 maxEpochs = 100
 featurePath = "./data/features"
@@ -63,7 +59,7 @@ def printAccuracy(net, X, Y):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 15), batchSize)
+    gen = Generator(featurePath, labelPath, (0, 40), batchSize)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) 

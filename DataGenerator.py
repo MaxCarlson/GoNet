@@ -14,9 +14,11 @@ class FileLoader():
         self.labelList = self.shapeFileList(os.listdir(labelPath))
         # Indices in file lists which we'll shuffle to randomize files
         self.idx = 0
+        self.maxQSize = maxQSize
         self.indices = np.arange(0, len(self.featureList))
         self.queue = queue.Queue(maxsize=maxQSize)
-
+        thread = threading.Thread(target=self.fillQueue)
+        thread.start()
 
     # Use only the # of files we're told to
     def shapeFileList(self, fileList):
@@ -68,22 +70,28 @@ class FileLoader():
 
     def fillQueue(self):
         
-        lock = asyncio.Lock()
-        lock.acquire()
-        while self.queue.full() == False:
-            if self.idx == np.shape(self.indices)[0]:
-                random.shuffle(indices)
-                self.idx = 0
+        lock = threading.Lock()
+        with lock:
+            while self.queue.full() == False:
+                if self.idx == np.shape(self.indices)[0]:
+                    random.shuffle(self.indices)
+                    self.idx = 0
 
-            self.queue.put(self.loadFile(self.idx))
-            self.idx += 1
+                self.queue.put((self.loadFile(self.idx)))
+                self.idx += 1
 
-        lock.release()
-
+    # When a new file is needed retrieve it
+    # Also call the thread 
     def nextFile(self):
         XX, YY = self.queue.get()
-        thread = threading.Thread(target=fillQueue)
-        thread.start()
+        self.queue.task_done()
+
+        # Only start a thread if we're running low
+        qCount = self.queue.qsize()
+        if qCount == 0 or qCount <= self.maxQSize // 2:
+            thread = threading.Thread(target=self.fillQueue)
+            thread.start()
+
         return XX, YY
     
 
@@ -183,10 +191,8 @@ class Generator():
     # Continuously read and generate data for the model
     # As it likely can't fit in memory
     def generator(self):
-        
-        fList = self.shapeFileList(os.listdir(self.featurePath))
-        lList = self.shapeFileList(os.listdir(self.labelPath))
-        indices = np.arange(0, len(fList))
+
+        loader = FileLoader(self.fileShape, self.featurePath, self.labelPath, 3)
 
         i = 0
         m = 0
@@ -196,16 +202,10 @@ class Generator():
         # Number of mini-batches we can read from a file
         fileLoadsPb = -1
         while True:
-
             # Handle loading from new files when needed
             if mi >= fileLoadsPb:
-                if i >= len(fList):
-                    i = 0
-                    random.shuffle(indices)
-                
-                # Load a new file
                 mi = 0
-                XX, YY = self.loadFile(fList, lList, indices, i)
+                XX, YY = loader.nextFile()
                 m = np.shape(YY)[0]
                 fileLoadsPb = m // self.batchSize
                 # Roll for a random spot to start the batch range slice
