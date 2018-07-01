@@ -59,7 +59,7 @@ def printAccuracy(net, X, Y):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 40), batchSize)
+    gen = Generator(featurePath, labelPath, (0, 40), batchSize, 3)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) 
@@ -70,8 +70,8 @@ def trainNet():
     loss = cntk.cross_entropy_with_softmax(net, labelVar)
     acc  = cntk.classification_error(net, labelVar)
     
-    minisPerBatch = gen.stepsPerEpoch()
-    learner = cntk.adam(net.parameters, 0.0018, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
+    minisPerBatch = gen.stepsPerEpoch
+    learner = cntk.adam(net.parameters, 0.0048, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
     trainer = cntk.Trainer(net, (loss, acc), learner, progressPrinter)
