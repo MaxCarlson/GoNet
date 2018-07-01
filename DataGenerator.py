@@ -3,25 +3,28 @@ import random
 import numpy as np
 import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
-#import multiprocessing, threading, queue
+import multiprocessing, threading, queue, asyncio
 
 class FileLoader():
-    def __init__(self, fileShape, featurePath, labelPath):
+    def __init__(self, fileShape, featurePath, labelPath, maxQSize):
         self.fileShape = fileShape
         self.featurePath = featurePath
         self.labelPath = labelPath
         self.featureList = self.shapeFileList(os.listdir(featurePath))
         self.labelList = self.shapeFileList(os.listdir(labelPath))
         # Indices in file lists which we'll shuffle to randomize files
+        self.idx = 0
         self.indices = np.arange(0, len(self.featureList))
+        self.queue = queue.Queue(maxsize=maxQSize)
+
 
     # Use only the # of files we're told to
     def shapeFileList(self, fileList):
         return fileList[self.fileShape[0]:self.fileShape[1]]
 
     def loadFile(self, i):
-        sampleF = self.featureList[self.indices[i]]
-        sampleL = self.labelList[self.indices[i]]      
+        sampleF = self.featureList[self.indices[self.idx]]
+        sampleL = self.labelList[self.indices[self.idx]]      
         wholePathF = self.featurePath + '/' + sampleF
         wholePathL = self.labelPath + '/' + sampleL
 
@@ -63,6 +66,25 @@ class FileLoader():
 
         return X, Y
 
+    def fillQueue(self):
+        
+        lock = asyncio.Lock()
+        lock.acquire()
+        while self.queue.full() == False:
+            if self.idx == np.shape(self.indices)[0]:
+                random.shuffle(indices)
+                self.idx = 0
+
+            self.queue.put(self.loadFile(self.idx))
+            self.idx += 1
+
+        lock.release()
+
+    def nextFile(self):
+        XX, YY = self.queue.get()
+        thread = threading.Thread(target=fillQueue)
+        thread.start()
+        return XX, YY
     
 
 class Generator():
