@@ -8,6 +8,7 @@ from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 import scipy
 
+
 #import cntk.tests.test_utils
 #cntk.tests.test_utils.set_device_from_pytest_env() # (only needed for CNTK internal build system)
 
@@ -17,16 +18,15 @@ featurePath = "./data/features"
 labelPath = "./data/labels"
 
 def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
-    c = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
-    b = BatchNormalization()(c) #map_rank=1, normalization_time_constant=4096
-    do = Dropout(0.2)(b)
-    # Add dropout
+    cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
+    ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
+    do = Dropout(0.2)(ba)
     return relu(do)
 
 def DenseL(input, outSize):
-    d = Dense(outSize)(input)
-    b = BatchNormalization()(d)
-    do = Dropout(0.15)(b)
+    de = Dense(outSize, activation=None)(input)
+    ba = BatchNormalization()(de)
+    do = Dropout(0.15)(ba)
     return relu(do)
 
 def goNet(input, filters, outSize):
@@ -38,9 +38,17 @@ def goNet(input, filters, outSize):
     c2 = Conv(c1, (3, 3), filters, padding=True)
     c3 = Conv(c2, (3, 3), filters, padding=True)
     c4 = Conv(c3, (3, 3), filters, padding=True)
+    pool0 = MaxPooling((2,2))(c4)
 
-    pool = MaxPooling((2,2))(c4)
-    z = DenseL(pool, outSize)
+    c5 = Conv(pool0, (3, 3), filters, padding=True)
+    c6 = Conv(c5,    (3, 3), filters, padding=True)
+    pool1 = MaxPooling((2,2))(c6)
+
+    y = DenseL(pool1, outSize)
+    z = DenseL(y,    outSize)
+
+    #GraphViz error, FIX!
+    #print(cntk.logging.plot(z, filename='./graph.svg'))
 
     return z
 
@@ -55,7 +63,7 @@ def printAccuracy(net, X, Y):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 25), batchSize)
+    gen = Generator(featurePath, labelPath, (0, 15), batchSize)
 
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) 

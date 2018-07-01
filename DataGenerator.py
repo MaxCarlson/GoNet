@@ -5,6 +5,66 @@ import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 #import multiprocessing, threading, queue
 
+class FileLoader():
+    def __init__(self, fileShape, featurePath, labelPath):
+        self.fileShape = fileShape
+        self.featurePath = featurePath
+        self.labelPath = labelPath
+        self.featureList = self.shapeFileList(os.listdir(featurePath))
+        self.labelList = self.shapeFileList(os.listdir(labelPath))
+        # Indices in file lists which we'll shuffle to randomize files
+        self.indices = np.arange(0, len(self.featureList))
+
+    # Use only the # of files we're told to
+    def shapeFileList(self, fileList):
+        return fileList[self.fileShape[0]:self.fileShape[1]]
+
+    def loadFile(self, i):
+        sampleF = self.featureList[self.indices[i]]
+        sampleL = self.labelList[self.indices[i]]      
+        wholePathF = self.featurePath + '/' + sampleF
+        wholePathL = self.labelPath + '/' + sampleL
+
+        return self.extractNpy(wholePathF, wholePathL)
+
+    # Set the first layer of the feature maps 
+    # to the side-to-move color code (all ones for black, 0's for white)
+    def setColorLayer(self, X, C, m):
+        for i in range(0, m):
+            X[i, 0] = C[i] - 1
+
+    # Read the data from the file created in CurateData
+    # Format it into the binary feature map explained in CurateData
+    def extractNpy(self, xFile, yFile):
+        XComp = np.load(xFile)
+        YCol  = np.load(yFile)
+        m = np.shape(YCol)[0]
+        Y = YCol[0:m, 0]
+        C = YCol[0:m, 1]
+
+        # TODO: Figure out how to use scipy compressed catagorical here
+        #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
+        #Y = scipy.sparse.csc_matrix(Y, shape=(minibatchSize, BoardSize))    
+        Y = tf.keras.utils.to_categorical(Y, BoardSize)
+        X = np.zeros((m, BoardDepth, BoardLength, BoardLength))
+        self.setColorLayer(X, C, m)
+        
+        # Build the binary feature maps for all recorded board states
+        # for each example
+        for i in range(0, m):
+            # Add both layers representing player and opponent stones
+            color = C[i]
+            opponent = WHITE if color == BLACK else BLACK
+            index = 0
+            for j in range(1, BoardDepth, 2):
+                X[i, j]   = XComp[i, index] == color
+                X[i, j+1] = XComp[i, index] == opponent
+                index += 1
+
+        return X, Y
+
+    
+
 class Generator():
     def __init__(self, featurePath, labelPath, fileShape, batchSize):
         self.featurePath = featurePath
@@ -68,7 +128,7 @@ class Generator():
     # Grab the next chunk of the file
     def getNextChunk(self, XX, YY, m, roll):
             
-            X = np.zeros((self.batchSize, BoardDepth, BoardLength, BoardLength)) # TODO: , dtype=bool
+            X = np.zeros((self.batchSize, BoardDepth, BoardLength, BoardLength)) 
             Y = np.zeros((self.batchSize, BoardSize))
             
             if roll + self.batchSize < m:
@@ -101,24 +161,21 @@ class Generator():
     # Continuously read and generate data for the model
     # As it likely can't fit in memory
     def generator(self):
-    
+        
         fList = self.shapeFileList(os.listdir(self.featurePath))
         lList = self.shapeFileList(os.listdir(self.labelPath))
-
         indices = np.arange(0, len(fList))
-
-        #featQ = queue()
-        #thread.start_new_thread(fillQueue, (featQ, indices, i))
 
         i = 0
         m = 0
         mi = 0
         roll = 0
         XX, YY = np.zeros(1), np.zeros(1)
-        loadNew = True
         # Number of mini-batches we can read from a file
         fileLoadsPb = -1
         while True:
+
+            # Handle loading from new files when needed
             if mi >= fileLoadsPb:
                 if i >= len(fList):
                     i = 0
