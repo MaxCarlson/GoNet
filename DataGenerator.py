@@ -5,6 +5,12 @@ import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 import multiprocessing, threading, queue, asyncio
 
+# Handles the loading and processing of individual files
+# into data that is partially readable (not sepperated into batches)
+# for the model. Also keeps and maintains a queue of 
+# proccessed data for reading without wait
+#
+# Args:
 # fileShape: The range of files to read data from; 
 # useful for sepperating training/validation data
 # feature/labelPath: path to features/labels containing folder
@@ -77,15 +83,16 @@ class FileLoader():
     def fillQueue(self):
         
         lock = threading.Lock()
-        with lock:
-            while self.queue.full() == False:
-                if self.idx == np.shape(self.indices)[0]:
-                    random.shuffle(self.indices)
-                    self.idx = 0
+        lock.acquire()
+        while self.queue.full() == False:
+            if self.idx == np.shape(self.indices)[0]:
+                random.shuffle(self.indices)
+                self.idx = 0
 
-                self.queue.put((self.loadFile(self.idx)))
-                self.idx += 1
+            self.queue.put((self.loadFile(self.idx)))
+            self.idx += 1
 
+        lock.release()
     # When a new file is needed retrieve it
     # Also call the thread 
     def nextFile(self):
@@ -104,6 +111,7 @@ class FileLoader():
 # Uses FileLoader's multiple threads to keep processing/reading data while
 # model is running
 #
+# Args:
 # feature/labelPath: is the path to the feature/label files 
 # batchSize: Number of items processed in each batch. Also used to calculate stepsPerEpoch and samplesEst
 # loadSize: Number of files to hold queued for model

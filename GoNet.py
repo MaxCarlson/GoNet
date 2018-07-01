@@ -50,21 +50,30 @@ def goNet(input, filters, outSize):
 
 # Prints the nets accuracy on whatever inputs are given
 # 
-def printAccuracy(net, X, Y):
-    outs = net(X)
-    pred = np.argmax(Y, 1)
-    indx = np.argmax(outs, 1)
-    same = pred == indx
-    print("Accuracy %", np.sum(same)/batchSize*100)
+def printAccuracy(net, g, numFromGen):
+
+    counted = 0
+    correct = 0
+    for i in range(numFromGen):
+        X, Y = next(g)
+        outs = net(X)
+        pred = np.argmax(Y, 1)
+        indx = np.argmax(outs, 1)
+        same = pred == indx
+        counted += np.shape(Y)[0]
+        correct += np.sum(same)
+
+    print("Accuracy %", (correct/counted)*100.0)
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 40), batchSize, 3)
+    gen = Generator(featurePath, labelPath, (0, 3), batchSize, 3)
 
+    filters = 64
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     labelVar = cntk.ops.input_variable(BoardSize, np.float32) 
 
-    net = goNet(inputVar, 64, BoardSize)
+    net = goNet(inputVar, filters, BoardSize)
    
     # Loss and metric
     loss = cntk.cross_entropy_with_softmax(net, labelVar)
@@ -89,7 +98,7 @@ def trainNet():
 
        
         trainer.summarize_training_progress()
-        printAccuracy(net, X, Y)
+        printAccuracy(net, g, 15)
 
         
 
