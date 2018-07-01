@@ -5,6 +5,12 @@ import tensorflow as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 import multiprocessing, threading, queue, asyncio
 
+# fileShape: The range of files to read data from; 
+# useful for sepperating training/validation data
+# feature/labelPath: path to features/labels containing folder
+# maxQSize: Maximum number of files contents to hold in memory
+#
+# TODO: Make more generic and move specific model code outside to another class
 class FileLoader():
     def __init__(self, fileShape, featurePath, labelPath, maxQSize):
         self.fileShape = fileShape
@@ -94,7 +100,15 @@ class FileLoader():
 
         return XX, YY
     
-
+# Generates batches of data for the model
+# Uses FileLoader's multiple threads to keep processing/reading data while
+# model is running
+#
+# feature/labelPath: is the path to the feature/label files 
+# batchSize: Number of items processed in each batch. Also used to calculate stepsPerEpoch and samplesEst
+# loadSize: Number of files to hold queued for model
+#
+# TODO: Make more generic and move specific model code outside to another class
 class Generator():
     def __init__(self, featurePath, labelPath, fileShape, batchSize, loadSize = 3):
         self.featurePath = featurePath
