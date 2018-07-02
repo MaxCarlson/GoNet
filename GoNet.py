@@ -12,12 +12,18 @@ batchSize = 512
 maxEpochs = 30
 featurePath = "./data/features"
 labelPath = "./data/labels"
+saveDir = './SavedModels/'
+netName = 'GoNet'
 
-def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
+def Conv(input, filterShape, filters,  strides=(1,1), activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
-    do = Dropout(0.2)(ba)
-    return relu(do)
+    do = Dropout(0.15)(ba)
+
+    if activation:
+        return relu(do)
+    else:
+        return do
 
 def DenseL(input, outSize):
     de = Dense(outSize, activation=None)(input)
@@ -25,25 +31,23 @@ def DenseL(input, outSize):
     do = Dropout(0.15)(ba)
     return relu(do)
 
+def ResStack(input, filters):
+    c0 = Conv(input, (3,3), filters, 1)
+    c1 = Conv(c0,    (3,3), filters, 1, False)
+    return relu(c1 + input)
+
 def goNet(input, filters, outSize):
 
-    with cntk.layers.default_options(pad=True):
-        z = cntk.layers.Sequential([
-            cntk.layers.For(range(4), lambda : [
-                    Convolution2D((3,3), filters, activation=None),
-                    BatchNormalization(),
-                    Dropout(0.15),
-                    relu
-                ]),
-            MaxPooling((2,2), (2,2)),
-            cntk.layers.For(range(2), lambda : [
-                    Convolution2D((3,3), filters, activation=None),
-                    BatchNormalization(),
-                    Dropout(0.15),
-                    relu
-                ]),
-            Dense(outSize, activation=None),
-        ])(input)
+    c0 = Conv(input, (3,3), filters, 1)
+    r0 = ResStack(c0, filters)
+    r1 = ResStack(r0, filters)
+    
+    pl = MaxPooling((2,2), (2,2))(r1)
+    r2 = ResStack(pl, filters)
+    r3 = ResStack(r2, filters)
+
+    c1 = Conv(r3, (1,1), 2, 1)
+    z  = Dense(outSize, activation=None)(c1)
 
     #GraphViz error, FIX!
     #print(cntk.logging.plot(z, filename='./graph.svg'))
@@ -84,7 +88,7 @@ def trainNet():
     acc  = cntk.classification_error(net, labelVar)
     
     minisPerBatch = gen.stepsPerEpoch
-    learner = cntk.adam(net.parameters, 0.0248, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
+    learner = cntk.adam(net.parameters, 0.3248, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
     #learner = cntk.sgd(net.parameters, 0.0148, minibatch_size=batchSize)
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
@@ -107,29 +111,32 @@ def trainNet():
         trainer.summarize_training_progress()
         printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
+        if epoch > maxEpochs/3:
+            net.save(saveDir + netName + "_{}.dnn".format(epoch))
+
         
 
 
 trainNet()
 
 '''
-# TODO: Look into what this padding turns out to actually pad to
-# See if we can get padding similar to AlphaGo's, i.e. pad board to 23x23
-c0 = Conv(input, (5, 5), filters, padding=True)
-c1 = Conv(c0, (3, 3), filters)
-c2 = Conv(c1, (3, 3), filters, padding=True)
-c3 = Conv(c2, (3, 3), filters, padding=True)
-c4 = Conv(c3, (3, 3), filters, padding=True)
-pool0 = MaxPooling((2,2))(c4)
+    # equiv
+    c0 = Conv(input, (3,3), filters, 1)
+    c1 = Conv(c0,    (3,3), filters, 1)
+    c2 = Conv(c1,    (3,3), filters, 1)
+    c3 = Conv(c2,    (3,3), filters, 1)
 
-c5 = Conv(pool0, (3, 3), filters, padding=True)
-c6 = Conv(c5,    (3, 3), filters, padding=True)
-pool1 = MaxPooling((2,2))(c6)
+    pool = MaxPooling((2,2), (2,2))(c3)
+    c4 = Conv(pool,  (3,3), filters, 1)
+    c5 = Conv(c4,    (3,3), filters, 1)
 
-y = DenseL(pool1, outSize)
-z = DenseL(y,     outSize)
+    z  = Dense(outSize, activation=None)(c5)
 
-    with cntk.layers.default_options(activation=cntk.ops.relu, pad=True):
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    # Best model so far
+    with cntk.layers.default_options(pad=True):
         z = cntk.layers.Sequential([
             cntk.layers.For(range(4), lambda : [
                     Convolution2D((3,3), filters, activation=None),
@@ -144,6 +151,6 @@ z = DenseL(y,     outSize)
                     Dropout(0.15),
                     relu
                 ]),
-            Dense(outSize)
-            ])(input)
+            Dense(outSize, activation=None),
+        ])(input)
 '''
