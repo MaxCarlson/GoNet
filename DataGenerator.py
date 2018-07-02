@@ -45,7 +45,7 @@ class FileLoader():
         return self.extractNpy(wholePathF, wholePathL)
 
     # Set the first layer of the feature maps 
-    # to the side-to-move color code (all ones for black, 0's for white)
+    # to the side-to-move color code (all 0's for black, 1's for white)
     def setColorLayer(self, X, C, m):
         for i in range(0, m):
             X[i, 0] = C[i] - 1
@@ -85,7 +85,7 @@ class FileLoader():
         lock = threading.Lock()
         lock.acquire()
         while self.queue.full() == False:
-            if self.idx == np.shape(self.indices)[0]:
+            if self.idx >= np.shape(self.indices)[0]:
                 random.shuffle(self.indices)
                 self.idx = 0
 
