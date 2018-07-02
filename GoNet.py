@@ -15,19 +15,19 @@ labelPath = "./data/labels"
 
 def Conv(input, filterShape, filters,  strides=(1,1), padding=False):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
-    ba = BatchNormalization(map_rank=1)(cn) #map_rank=1, normalization_time_constant=4096
+    ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
     do = Dropout(0.2)(ba)
     return relu(do)
 
 def DenseL(input, outSize):
     de = Dense(outSize, activation=None)(input)
-    ba = BatchNormalization(map_rank=1)(de)
+    ba = BatchNormalization()(de)
     do = Dropout(0.15)(ba)
     return relu(do)
 
 def goNet(input, filters, outSize):
 
-    with cntk.layers.default_options(activation=cntk.ops.relu, pad=True):
+    with cntk.layers.default_options(pad=True):
         z = cntk.layers.Sequential([
             cntk.layers.For(range(4), lambda : [
                     Convolution2D((3,3), filters, activation=None),
@@ -70,8 +70,8 @@ def printAccuracy(net, string, g, numFromGen):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 10), batchSize, loadSize=3)
-    valGen = Generator(featurePath, labelPath, (14, 15), batchSize, loadSize=1)
+    gen = Generator(featurePath, labelPath, (0, 30), batchSize, loadSize=3)
+    valGen = Generator(featurePath, labelPath, (34, 35), batchSize, loadSize=1)
 
     filters = 64
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
