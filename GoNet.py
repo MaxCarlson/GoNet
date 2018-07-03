@@ -8,7 +8,7 @@ from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 import scipy
 
-batchSize = 512
+batchSize = 256
 maxEpochs = 30
 featurePath = "./data/features"
 labelPath = "./data/labels"
@@ -18,22 +18,16 @@ netName = 'GoNet'
 def Conv(input, filterShape, filters,  strides=(1,1), activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
-    do = Dropout(0.15)(ba)
+    do = Dropout(0.22)(ba)
 
     if activation:
         return relu(do)
     else:
         return do
 
-def DenseL(input, outSize):
-    de = Dense(outSize, activation=None)(input)
-    ba = BatchNormalization()(de)
-    do = Dropout(0.15)(ba)
-    return relu(do)
-
 def ResStack(input, filters):
     c0 = Conv(input, (3,3), filters, 1)
-    c1 = Conv(c0,    (3,3), filters, 1, False)
+    c1 = Conv(c0,    (3,3), filters, 1, activation=False)
     return relu(c1 + input)
 
 def goNet(input, filters, outSize):
@@ -41,12 +35,14 @@ def goNet(input, filters, outSize):
     c0 = Conv(input, (3,3), filters, 1)
     r0 = ResStack(c0, filters)
     r1 = ResStack(r0, filters)
+    r2 = ResStack(r1, filters)
     
-    pl = MaxPooling((2,2), (2,2))(r1)
-    r2 = ResStack(pl, filters)
-    r3 = ResStack(r2, filters)
+    pl = MaxPooling((2,2), (2,2))(r2)
+    r3 = ResStack(pl, filters)
+    r4 = ResStack(r3, filters)
+    r5 = ResStack(r4, filters)
 
-    c1 = Conv(r3, (1,1), 2, 1)
+    c1 = Conv(r5, (1,1), 2, 1)
     z  = Dense(outSize, activation=None)(c1)
 
     #GraphViz error, FIX!
@@ -87,9 +83,7 @@ def trainNet():
     loss = cntk.cross_entropy_with_softmax(net, labelVar)
     acc  = cntk.classification_error(net, labelVar)
     
-    minisPerBatch = gen.stepsPerEpoch
-    learner = cntk.adam(net.parameters, 0.3248, 0.9, minibatch_size=None) # minibatch_size=batchSize ?
-    #learner = cntk.sgd(net.parameters, 0.0148, minibatch_size=batchSize)
+    learner = cntk.adam(net.parameters, 0.33, 0.9, minibatch_size=batchSize) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
@@ -97,21 +91,19 @@ def trainNet():
 
     g = gen.generator()
     vg = valGen.generator()
-    X, Y = np.ones(1), np.ones(1)
     for epoch in range(maxEpochs):
         
         miniBatches = 0
-        while miniBatches < minisPerBatch:
+        while miniBatches < gen.stepsPerEpoch:
             X, Y = next(g)
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
-
             trainer.train_minibatch({inputVar : X, labelVar : Y})
 
        
         trainer.summarize_training_progress()
         printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
-        if epoch > maxEpochs/3:
+        if epoch >= 6:
             net.save(saveDir + netName + "_{}.dnn".format(epoch))
 
         
