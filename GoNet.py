@@ -27,7 +27,16 @@ def ResStack(input, filters):
     c1 = Conv(c0,    (3,3), filters, 1, activation=False)
     return relu(c1 + input)
 
-def goNet(input, filters, outSize):
+def ValueHead(input, size):
+    vc = Conv(input, (1,1), 1, 1)
+    d0 = Dense(size, activation=None)(vc)
+    b0 = BatchNormalization()(d0)
+    r0 = relu(b0)
+    d1 = Dense(2, activation=None)(r0)
+    r1 = relu(d1)
+    return cntk.softmax(r1)
+
+def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters, 1)
     r0 = ResStack(c0, filters)
@@ -39,13 +48,17 @@ def goNet(input, filters, outSize):
     r4 = ResStack(r3, filters)
     r5 = ResStack(r4, filters)
 
-    c1 = Conv(r5, (1,1), 2, 1)
-    z  = Dense(outSize, activation=None)(c1)
+    # Policy Head
+    pc = Conv(r5, (1,1), 2, 1)
+    p  = Dense(policyOut, activation=None)(pc)
 
+    # Value Head
+    v = ValueHead(r5, 128)
+    
     #GraphViz error, FIX!
     #print(cntk.logging.plot(z, filename='./graph.svg'))
 
-    return z
+    return cntk.combine(p, v)
 
 # Prints the nets accuracy over numFromGen
 # batches read from the generator class
@@ -58,7 +71,7 @@ def printAccuracy(net, string, g, numFromGen):
         outs = net(X)
         #outs = cntk.softmax(outs).eval()
         pred = np.argmax(Y, 1)
-        indx = np.argmax(outs, 1)
+        indx = np.argmax(outs[0], 1)
         same = pred == indx
         counted += np.shape(Y)[0]
         correct += np.sum(same)
@@ -72,13 +85,20 @@ def trainNet():
 
     filters = 64
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
-    labelVar = cntk.ops.input_variable((BoardSize), np.float32) 
+    policyVar = cntk.ops.input_variable((BoardSize), np.float32)
+    valueVar = cntk.ops.input_variable((2), np.float32) 
+    
 
-    net = goNet(inputVar, filters, BoardSize)
+    net = goNet(inputVar, filters, BoardSize, 2)
    
     # Loss and metric
-    loss = cntk.cross_entropy_with_softmax(net, labelVar)
-    acc  = cntk.classification_error(net, labelVar)
+    loss0 = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
+    loss1 = cntk.cross_entropy_with_softmax(net.outputs[1], valueVar)
+    loss = loss0 + loss1
+
+    classError0 = cntk.classification_error(net.outputs[0], policyVar)
+    classError1 = cntk.classification_error(net.outputs[1], valueVar)
+    acc  = classError0 + classError1
     
     learner = cntk.adam(net.parameters, 0.33, 0.9, minibatch_size=batchSize) 
 
@@ -94,7 +114,7 @@ def trainNet():
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
-            trainer.train_minibatch({inputVar : X, labelVar : Y})
+            trainer.train_minibatch({inputVar : X, policyVar : Y, valueVar : W})
 
        
         trainer.summarize_training_progress()
