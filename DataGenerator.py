@@ -56,13 +56,19 @@ class FileLoader():
         XComp = np.load(xFile)
         YCol  = np.load(yFile)
         m = np.shape(YCol)[0]
+
+        # Move they made
         Y = YCol[0:m, 0]
+        # Color of player moving
         C = YCol[0:m, 1]
+        # Who won? Encoding is B = 0, W = 1
+        W = YCol[0:m, 2]
 
         # TODO: Figure out how to use scipy compressed catagorical here
         #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
         #Y = scipy.sparse.csc_matrix(Y, shape=(minibatchSize, BoardSize))    
         Y = tf.keras.utils.to_categorical(Y, BoardSize)
+        W = tf.keras.utils.to_categorical(W, 2)
         X = np.zeros((m, BoardDepth, BoardLength, BoardLength))
         self.setColorLayer(X, C, m)
         
@@ -78,7 +84,7 @@ class FileLoader():
                 X[i, j+1] = XComp[i, index] == opponent
                 index += 1
 
-        return X, Y
+        return X, Y, W
 
     def fillQueue(self):
         
@@ -96,7 +102,7 @@ class FileLoader():
     # When a new file is needed retrieve it
     # Also call the thread 
     def nextFile(self):
-        XX, YY = self.queue.get()
+        XX, YY, WW = self.queue.get()
         self.queue.task_done()
 
         # Only start a thread if we're running low
@@ -105,7 +111,7 @@ class FileLoader():
             thread = threading.Thread(target=self.fillQueue)
             thread.start()
 
-        return XX, YY
+        return XX, YY, WW
     
 # Generates batches of data for the model
 # Uses FileLoader's multiple threads to keep processing/reading data while
@@ -129,14 +135,16 @@ class Generator():
         self.calcStepsPerEpoch()
 
     # Grab the next chunk of the file
-    def getNextChunk(self, XX, YY, m, roll):
+    def getNextChunk(self, XX, YY, WW, m, roll):
             
             X = np.zeros((self.batchSize, BoardDepth, BoardLength, BoardLength)) 
             Y = np.zeros((self.batchSize, BoardSize))
+            W = np.zeros((self.batchSize, 2))
             
             if roll + self.batchSize < m:
                 X = XX[roll:roll + self.batchSize]
                 Y = YY[roll:roll + self.batchSize]
+                W = WW[roll:roll + self.batchSize]
 
             # This shouldn't happen all that often,
             # Should curate data to avoid it infact!
@@ -145,6 +153,7 @@ class Generator():
                     roll = random.randint(0, np.shape(XX)[0]-1)        
                     X[b] = XX[roll]
                     Y[b] = YY[roll]
+                    W[b] = WW[roll]
 
             else:
                 # If it's not a perfect fit, take the upper slice then the lower one
@@ -152,14 +161,16 @@ class Generator():
                 m2 = self.batchSize - m1
                 X[0:m1] = XX[roll:m]
                 Y[0:m1] = YY[roll:m]
+                W[0:m1] = WW[roll:m]
                 X[m1:self.batchSize] = XX[0:m2]
                 Y[m1:self.batchSize] = YY[0:m2]
+                W[m1:self.batchSize] = WW[0:m2]
 
             roll += self.batchSize
             if roll > m:
                 roll -= m
 
-            return X, Y, roll
+            return X, Y, W, roll
 
     # Continuously read and generate data for the model
     # As it likely can't fit in memory
@@ -176,16 +187,16 @@ class Generator():
             # Handle loading from new files when needed
             if mi >= fileLoadsPb:
                 mi = 0
-                XX, YY = self.loader.nextFile()
+                XX, YY, WW = self.loader.nextFile()
                 m = np.shape(YY)[0]
                 fileLoadsPb = m // self.batchSize
                 # Roll for a random spot to start the batch range slice
                 roll = random.randint(0, m - 1)
 
 
-            X, Y, roll = self.getNextChunk(XX, YY, m, roll)
+            X, Y, W, roll = self.getNextChunk(XX, YY, WW, m, roll)
 
-            yield X.astype(np.float32), Y.astype(np.float32)
+            yield X.astype(np.float32), Y.astype(np.float32), W.astype(np.float32)
 
             mi += 1
             if mi >= fileLoadsPb:
@@ -203,7 +214,7 @@ class Generator():
         for i in range(0 , maxIt):
             featurePath = self.featurePath + '/' + self.loader.featureList[i]
             labelPath = self.labelPath + '/' + self.loader.labelList[i]
-            X, Y = self.loader.extractNpy(featurePath, labelPath)
+            X, Y, W = self.loader.extractNpy(featurePath, labelPath)
             size = np.shape(Y)[0]
 
             if size > largest: largest = size

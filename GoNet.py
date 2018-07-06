@@ -20,10 +20,7 @@ def Conv(input, filterShape, filters,  strides=(1,1), activation=True, padding=T
     ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
     do = Dropout(0.22)(ba)
 
-    if activation:
-        return relu(do)
-    else:
-        return do
+    return relu(do) if activation else do
 
 def ResStack(input, filters):
     c0 = Conv(input, (3,3), filters, 1)
@@ -57,7 +54,7 @@ def printAccuracy(net, string, g, numFromGen):
     counted = 0
     correct = 0
     for i in range(numFromGen):
-        X, Y = next(g)
+        X, Y, W = next(g)
         outs = net(X)
         #outs = cntk.softmax(outs).eval()
         pred = np.argmax(Y, 1)
@@ -70,7 +67,7 @@ def printAccuracy(net, string, g, numFromGen):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 30), batchSize, loadSize=3)
+    gen = Generator(featurePath, labelPath, (0, 10), batchSize, loadSize=3)
     valGen = Generator(featurePath, labelPath, (34, 35), batchSize, loadSize=1)
 
     filters = 64
@@ -95,7 +92,7 @@ def trainNet():
         
         miniBatches = 0
         while miniBatches < gen.stepsPerEpoch:
-            X, Y = next(g)
+            X, Y, W = next(g)
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not giving innacurate #'s
             trainer.train_minibatch({inputVar : X, labelVar : Y})
 
@@ -106,43 +103,5 @@ def trainNet():
         if epoch >= 6:
             net.save(saveDir + netName + "_{}.dnn".format(epoch))
 
-        
-
 
 trainNet()
-
-'''
-    # equiv
-    c0 = Conv(input, (3,3), filters, 1)
-    c1 = Conv(c0,    (3,3), filters, 1)
-    c2 = Conv(c1,    (3,3), filters, 1)
-    c3 = Conv(c2,    (3,3), filters, 1)
-
-    pool = MaxPooling((2,2), (2,2))(c3)
-    c4 = Conv(pool,  (3,3), filters, 1)
-    c5 = Conv(c4,    (3,3), filters, 1)
-
-    z  = Dense(outSize, activation=None)(c5)
-
-
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    # Best model so far
-    with cntk.layers.default_options(pad=True):
-        z = cntk.layers.Sequential([
-            cntk.layers.For(range(4), lambda : [
-                    Convolution2D((3,3), filters, activation=None),
-                    BatchNormalization(),
-                    Dropout(0.15),
-                    relu
-                ]),
-            MaxPooling((2,2), (2,2)),
-            cntk.layers.For(range(2), lambda : [
-                    Convolution2D((3,3), filters, activation=None),
-                    BatchNormalization(),
-                    Dropout(0.15),
-                    relu
-                ]),
-            Dense(outSize, activation=None),
-        ])(input)
-'''
