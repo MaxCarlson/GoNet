@@ -8,14 +8,14 @@ from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 import scipy
 
-batchSize = 256
+batchSize = 128
 maxEpochs = 30
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
 netName = 'GoNet'
 
-def Conv(input, filterShape, filters,  strides=(1,1), activation=True, padding=True):
+def Conv(input, filterShape, filters, activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
     do = Dropout(0.22)(ba)
@@ -23,28 +23,30 @@ def Conv(input, filterShape, filters,  strides=(1,1), activation=True, padding=T
     return relu(do) if activation else do
 
 def ResStack(input, filters):
-    c0 = Conv(input, (3,3), filters, 1)
-    c1 = Conv(c0,    (3,3), filters, 1, activation=False)
+    c0 = Conv(input, (3,3), filters)
+    c1 = Conv(c0,    (3,3), filters, activation=False)
     return relu(c1 + input)
 
-def ValueHead(input, size):
-    vc = Conv(input, (1,1), 1, 1)
-    d0 = Dense(size, activation=None)(vc)
-    b0 = BatchNormalization()(d0)
-    r0 = relu(b0)
-    d1 = Dense(2, activation=None)(r0)
-    r1 = relu(d1)
-    return cntk.softmax(r1)
+def ValueHead(input, size, valueOut):
+    vc = Convolution2D((1,1), 1, activation=None)(input)
+    b0 = BatchNormalization()(vc)
+    dp = Dropout(0.40)(b0)
+    r0 = relu(dp)
+    d0 = Dense(size, activation=None)(r0)
+    dr = Dropout(0.58)(d0)
+    r1 = relu(dr)
+    d1 = Dense(valueOut, activation=None)(r1)
+    return d1 #cntk.layers.tanh(d1)
 
 def goNet(input, filters, policyOut, valueOut):
 
-    c0 = Conv(input, (3,3), filters, 1)
+    c0 = Conv(input, (3,3), filters)
     r0 = ResStack(c0, filters)
     r1 = ResStack(r0, filters)
     r2 = ResStack(r1, filters)
     
-    pl = MaxPooling((2,2), (2,2))(r2)
-    r3 = ResStack(pl, filters)
+    #pl = MaxPooling((2,2), (2,2))(r2)
+    r3 = ResStack(r2, filters)
     r4 = ResStack(r3, filters)
     r5 = ResStack(r4, filters)
 
@@ -53,7 +55,7 @@ def goNet(input, filters, policyOut, valueOut):
     p  = Dense(policyOut, activation=None)(pc)
 
     # Value Head
-    v = ValueHead(r5, 128)
+    v = ValueHead(r5, 32, valueOut)
     
     #GraphViz error, FIX!
     #print(cntk.logging.plot(z, filename='./graph.svg'))
@@ -65,22 +67,33 @@ def goNet(input, filters, policyOut, valueOut):
 def printAccuracy(net, string, g, numFromGen):
 
     counted = 0
-    correct = 0
+    pcorrect = 0
+    vcorrect = 0
     for i in range(numFromGen):
         X, Y, W = next(g)
         outs = net(X)
-        #outs = cntk.softmax(outs).eval()
+        
+        # PolcyNetworkAcc
         pred = np.argmax(Y, 1)
         indx = np.argmax(outs[0], 1)
-        same = pred == indx
-        counted += np.shape(Y)[0]
-        correct += np.sum(same)
+        psame = pred == indx
 
-    print(string, (correct/counted)*100.0)
+        # Value Network Acc
+        pred = np.argmax(W, 1)
+        indx = np.argmax(outs[1], 1)
+        vsame = pred == indx
+
+        counted += np.shape(Y)[0]
+        pcorrect += np.sum(psame)
+        vcorrect += np.sum(vsame)
+
+    print(string)
+    print('PolicyAcc', (pcorrect/counted)*100.0)
+    print('ValueAcc',  (vcorrect/counted)*100.0)
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 10), batchSize, loadSize=3)
+    gen = Generator(featurePath, labelPath, (0, 15), batchSize, loadSize=3)
     valGen = Generator(featurePath, labelPath, (34, 35), batchSize, loadSize=1)
 
     filters = 64
@@ -94,17 +107,17 @@ def trainNet():
     # Loss and metric
     loss0 = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
     loss1 = cntk.cross_entropy_with_softmax(net.outputs[1], valueVar)
-    loss = loss0 + loss1
+    loss = loss0 + (loss1 * 1)
 
-    classError0 = cntk.classification_error(net.outputs[0], policyVar)
-    classError1 = cntk.classification_error(net.outputs[1], valueVar)
-    acc  = classError0 + classError1
+    classError0 = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
+    classError1 = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
+    error =  classError1 #classError0 +
     
     learner = cntk.adam(net.parameters, 0.33, 0.9, minibatch_size=batchSize) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
-    trainer = cntk.Trainer(net, (loss, acc), learner, progressPrinter)
+    trainer = cntk.Trainer(net, (loss, error), learner, progressPrinter)
 
     g = gen.generator()
     vg = valGen.generator()
