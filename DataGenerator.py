@@ -61,10 +61,14 @@ class FileLoader():
         Y = YCol[0:m, 0]
         # Color of player moving
         C = YCol[0:m, 1]
+
+        # Testing encoading of winner from side to move
+        #
         # Who won? Encoding is B = 0, W = 1
         W = YCol[0:m, 2]
 
-        # TODO: Figure out how to use scipy compressed catagorical here
+
+        # TODO: Figure out how to use scipy compressed catagorical here (to remove keras/tf requirement)
         #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
         #Y = scipy.sparse.csc_matrix(Y, shape=(minibatchSize, BoardSize))    
         Y = tf.keras.utils.to_categorical(Y, BoardSize)
