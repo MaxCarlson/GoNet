@@ -36,10 +36,10 @@ def ResStack(input, filters, count):
 def ValueHead(input, size, valueOut):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
-    dr = Dropout(0.45)(b0)
+    dr = Dropout(0.5)(b0)
     r0 = relu(dr)
     d0 = Dense(size, activation=None)(r0)
-    do = Dropout(0.45)(d0)
+    do = Dropout(0.5)(d0)
     r1 = relu(do)
     d1 = Dense(valueOut, activation=None)(r1)
     return d1 #cntk.layers.tanh(d1)
@@ -47,7 +47,7 @@ def ValueHead(input, size, valueOut):
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 3)
+    rs = ResStack(c0, filters, 5)
 
     # Policy Head
     #pc = Conv(rs, (1,1), 2, 1)
@@ -89,7 +89,7 @@ def printAccuracy(net, string, g, numFromGen):
 
 def trainNet():
     
-    gen = Generator(featurePath, labelPath, (0, 20), batchSize, loadSize=3)
+    gen = Generator(featurePath, labelPath, (0, 15), batchSize, loadSize=3)
     valGen = Generator(featurePath, labelPath, (200, 201), batchSize, loadSize=1)
 
     filters = 64
@@ -110,7 +110,7 @@ def trainNet():
     #error = (valueError + policyError) / 2
     error = valueError
     
-    learner = cntk.adam(net.parameters, 0.13, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner = cntk.adam(net.parameters, 0.03, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.00005) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
