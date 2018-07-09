@@ -2,7 +2,6 @@ from __future__ import print_function
 import numpy as np
 import cntk as cntk
 from cntk.ops import relu
-from cntk.initializer import he_normal, normal
 from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 from DataGenerator import Generator
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
@@ -18,7 +17,7 @@ netName = 'GoNet'
 def Conv(input, filterShape, filters, activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
-    do = Dropout(0.35)(ba)
+    do = Dropout(0.13)(ba)
 
     return relu(do) if activation else do
 
@@ -36,10 +35,10 @@ def ResStack(input, filters, count):
 def ValueHead(input, size, valueOut):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
-    dr = Dropout(0.5)(b0)
+    dr = Dropout(0.14)(b0)
     r0 = relu(dr)
     d0 = Dense(size, activation=None)(r0)
-    do = Dropout(0.5)(d0)
+    do = Dropout(0.14)(d0)
     r1 = relu(do)
     d1 = Dense(valueOut, activation=None)(r1)
     return d1 #cntk.layers.tanh(d1)
@@ -47,16 +46,16 @@ def ValueHead(input, size, valueOut):
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 5)
+    rs = ResStack(c0, filters, 6)
 
     # Policy Head
-    #pc = Conv(rs, (1,1), 2, 1)
-    #p  = Dense(policyOut, activation=None)(pc)
+    pc = Conv(rs, (1,1), 2, 1)
+    p  = Dense(policyOut, activation=None)(pc)
 
     # Value Head
-    v = ValueHead(rs, 64, valueOut)
+    v = ValueHead(rs, 128, valueOut)
     
-    return v#cntk.combine(p, v)
+    return cntk.combine(p, v)
 
 # Prints the nets accuracy over numFromGen
 # batches read from the generator class
@@ -70,47 +69,53 @@ def printAccuracy(net, string, g, numFromGen):
         outs = net(X)
         
         # PolcyNetworkAcc
-        #pred = np.argmax(Y, 1)
-        #indx = np.argmax(outs[0], 1)
-        #psame = pred == indx
+        pred = np.argmax(Y, 1)
+        indx = np.argmax(outs[0], 1)
+        psame = pred == indx
 
         # Value Network Acc
         pred = np.argmax(W, 1)
-        indx = np.argmax(outs, 1)
+        indx = np.argmax(outs[1], 1)
         vsame = pred == indx
 
         counted += np.shape(Y)[0]
-        #pcorrect += np.sum(psame)
+        pcorrect += np.sum(psame)
         vcorrect += np.sum(vsame)
 
     print(string)
-    #print('PolicyAcc', (pcorrect/counted)*100.0)
+    print('PolicyAcc', (pcorrect/counted)*100.0)
     print('ValueAcc',  (vcorrect/counted)*100.0)
 
-def trainNet():
+def trainNet(loadPath = '', load = False):
     
-    gen = Generator(featurePath, labelPath, (0, 15), batchSize, loadSize=3)
-    valGen = Generator(featurePath, labelPath, (200, 201), batchSize, loadSize=1)
+    gen = Generator(featurePath, labelPath, (0, 55), batchSize, loadSize=3)
+    valGen = Generator(featurePath, labelPath, (70, 71), batchSize, loadSize=1)
 
     filters = 64
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     policyVar = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar = cntk.ops.input_variable((2), np.float32) 
-    
 
-    net = goNet(inputVar, filters, BoardSize, 2)
+    net = cntk.placeholder()
+    
+    if load == True:
+        net = cntk.load_model(loadPath)
+    else:
+        net = goNet(inputVar, filters, BoardSize, 2)
    
     # Loss and metric
-    #policyLoss = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
-    valueLoss = cntk.cross_entropy_with_softmax(net.outputs[0], valueVar)
-    loss = valueLoss #policyLoss + valueLoss * 0.1
+    policyLoss = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
+    valueLoss = cntk.cross_entropy_with_softmax(net.outputs[1], valueVar)
+    loss = policyLoss + valueLoss
 
-    #policyError = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
-    valueError = cntk.element_not(cntk.classification_error(net.outputs[0], valueVar))
+    policyError = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
+    valueError = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
     #error = (valueError + policyError) / 2
     error = valueError
     
-    learner = cntk.adam(net.parameters, 0.03, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.00005) 
+    # Initial learning rate = 0.05
+    #
+    learner = cntk.adam(net.parameters, 0.035, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
@@ -124,14 +129,14 @@ def trainNet():
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not inputting more than we're saying we are
-            trainer.train_minibatch({inputVar : X,  valueVar : W}) #policyVar : Y,
+            trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) #policyVar : Y,
 
        
         trainer.summarize_training_progress()
         printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
-        if epoch >= 6:
-            net.save(saveDir + netName + "_{}.dnn".format(epoch))
+        net.save(saveDir + netName + "_{}.dnn".format(epoch))
 
 
-trainNet()
+#trainNet()
+trainNet('SavedModels/GoNet_38_52.dnn', True)
