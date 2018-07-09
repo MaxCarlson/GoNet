@@ -82,13 +82,17 @@ def printAccuracy(net, string, g, numFromGen):
         pcorrect += np.sum(psame)
         vcorrect += np.sum(vsame)
 
+    valueAcc  = (vcorrect/counted)*100.0
+    policyAcc = (pcorrect/counted)*100.0
     print(string)
-    print('PolicyAcc', (pcorrect/counted)*100.0)
-    print('ValueAcc',  (vcorrect/counted)*100.0)
+    print('PolicyAcc', policyAcc)
+    print('ValueAcc',  valueAcc)
+
+    return int(policyAcc), int(valueAcc)
 
 def trainNet(loadPath = '', load = False):
     
-    gen = Generator(featurePath, labelPath, (0, 55), batchSize, loadSize=3)
+    gen = Generator(featurePath, labelPath, (0, 69), batchSize, loadSize=3)
     valGen = Generator(featurePath, labelPath, (70, 71), batchSize, loadSize=1)
 
     filters = 64
@@ -115,11 +119,13 @@ def trainNet(loadPath = '', load = False):
     
     # Initial learning rate = 0.05
     #
-    learner = cntk.adam(net.parameters, 0.035, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner = cntk.adam(net.parameters, 0.040, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
     trainer = cntk.Trainer(net, (loss, error), learner, progressPrinter)
+
+
 
     g = gen.generator()
     vg = valGen.generator()
@@ -133,10 +139,10 @@ def trainNet(loadPath = '', load = False):
 
        
         trainer.summarize_training_progress()
-        printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
+        policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
-        net.save(saveDir + netName + "_{}.dnn".format(epoch))
+        net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch, policyAcc, valueAcc))
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_38_52.dnn', True)
+trainNet('SavedModels/GoNet_39_55.dnn', True)
