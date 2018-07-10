@@ -2,10 +2,10 @@ from __future__ import print_function
 import numpy as np
 import cntk as cntk
 from cntk.ops import relu
-from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 from DataGenerator import Generator
+from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
-import scipy
+#import scipy
 
 batchSize = 128
 maxEpochs = 30
@@ -16,9 +16,8 @@ netName = 'GoNet'
 
 def Conv(input, filterShape, filters, activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
-    ba = BatchNormalization()(cn) #map_rank=1, normalization_time_constant=4096
+    ba = BatchNormalization()(cn) 
     do = Dropout(0.13)(ba)
-
     return relu(do) if activation else do
 
 def ResLayer(input, filters):
@@ -46,7 +45,7 @@ def ValueHead(input, size, valueOut):
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 6)
+    rs = ResStack(c0, filters, 10)
 
     # Policy Head
     pc = Conv(rs, (1,1), 2, 1)
@@ -119,13 +118,11 @@ def trainNet(loadPath = '', load = False):
     
     # Initial learning rate = 0.05
     #
-    learner = cntk.adam(net.parameters, 0.040, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner = cntk.adam(net.parameters, 0.04, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
     trainer = cntk.Trainer(net, (loss, error), learner, progressPrinter)
-
-
 
     g = gen.generator()
     vg = valGen.generator()
@@ -135,14 +132,14 @@ def trainNet(loadPath = '', load = False):
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not inputting more than we're saying we are
-            trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) #policyVar : Y,
+            trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) 
 
        
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
-        net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch, policyAcc, valueAcc))
+        net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
 
 
-#trainNet()
-trainNet('SavedModels/GoNet_39_55.dnn', True)
+trainNet()
+#trainNet('SavedModels/GoNet_39_55.dnn', True)
