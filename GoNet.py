@@ -8,7 +8,7 @@ from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 #import scipy
 
 batchSize = 128
-maxEpochs = 30
+maxEpochs = 130
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
@@ -91,8 +91,8 @@ def printAccuracy(net, string, g, numFromGen):
 
 def trainNet(loadPath = '', load = False):
     
-    gen = Generator(featurePath, labelPath, (0, 69), batchSize, loadSize=3)
-    valGen = Generator(featurePath, labelPath, (70, 71), batchSize, loadSize=1)
+    gen = Generator(featurePath, labelPath, (0, 250), batchSize, loadSize=3)
+    valGen = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
 
     filters = 64
     inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
@@ -141,5 +141,5 @@ def trainNet(loadPath = '', load = False):
         net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
 
 
-trainNet()
-#trainNet('SavedModels/GoNet_39_55.dnn', True)
+#trainNet()
+trainNet('SavedModels/GoNet_5_41_57.dnn', True)
