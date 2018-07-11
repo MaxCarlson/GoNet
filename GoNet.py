@@ -59,6 +59,9 @@ def goNet(input, filters, policyOut, valueOut):
 
 # Prints the nets accuracy over numFromGen
 # batches read from the generator class
+#
+# TODO: Figure out how to get this done with
+# cntk.classification_error so it's on the GPU!
 def printAccuracy(net, string, g, numFromGen):
 
     counted = 0
@@ -90,6 +93,11 @@ def printAccuracy(net, string, g, numFromGen):
 
     return int(policyAcc), int(valueAcc)
 
+# Cycle the learning rate linearly between min and max rates
+# for apparently faster/better training. 
+# https://arxiv.org/pdf/1506.01186.pdf
+#
+# Doesn't handle permanant decreases in learning rate 
 def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
     
     lrs = []
@@ -109,23 +117,38 @@ def testLr(maxEpochs, minLr, maxLr):
     return lrs
 
 import matplotlib.pyplot as plt
-def plotHistory(loss, rates):
-    #plt.subplot(1, 2, 1)
-    plt.plot(rates, loss)
-    plt.title('model accuracy')
-    plt.ylabel('loss')
-    plt.xlabel('rate')
-    plt.show()
+
+class PlotModel():
+    def __init__(self):
+        self.plot = plt.figure()
+        plt.subplot(1, 2, 1)
+        plt.title('model info')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.subplot(1, 2, 2)
+        plt.title('model Acc%')
+        plt.ylabel('Accuracy')
+        plt.xlabel('epoch')
+        plt.legend(['policy', 'validation'], loc='upper left')
+        plt.ion()
+        plt.show()
+
+    def update(self, loss, polAcc, valAcc):
+        plt.plot(loss)
+        plt.plot(polAcc)
+        plt.plot(valAcc)
+        plt.draw()
+        plt.pause(0.001)
 
 def trainNet(loadPath = '', load = False):
     
-    gen = Generator(featurePath, labelPath, (0, 5), batchSize, loadSize=3)
-    valGen = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
+    gen     = Generator(featurePath, labelPath, (0, 1), batchSize, loadSize=3)
+    valGen  = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
 
-    filters = 64
-    inputVar = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
-    policyVar = cntk.ops.input_variable((BoardSize), np.float32)
-    valueVar = cntk.ops.input_variable((2), np.float32) 
+    filters     = 64
+    inputVar    = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
+    policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
+    valueVar    = cntk.ops.input_variable((2), np.float32) 
 
     net = cntk.placeholder()
     
@@ -135,31 +158,33 @@ def trainNet(loadPath = '', load = False):
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
    
-    # Loss and metric
-    policyLoss = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
-    valueLoss = cntk.cross_entropy_with_softmax(net.outputs[1], valueVar)
-    loss = policyLoss + valueLoss
+    # Loss and accuracy
+    policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
+    valueLoss   = cntk.cross_entropy_with_softmax(net.outputs[1], valueVar)
+    loss        = policyLoss + valueLoss
 
+    # TODO: Figure out how to display/report both errors
     policyError = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
-    valueError = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
+    valueError  = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
     #error = (valueError + policyError) / 2
     error = valueError
     
     # Initial learning rate = 0.04
     #
-    #lrs = testLr(maxEpochs, 0.0001, 1)
-    lrs = learningRateCycles(maxEpochs, 0.035, 0.09, 3)
+    lrs     = learningRateCycles(maxEpochs, 0.03, 0.045, 5)
     learner = cntk.adam(net.parameters, lrs, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
-    progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
-    
-    trainer = cntk.Trainer(net, (loss, error), learner, progressPrinter)
+    progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
+    trainer         = cntk.Trainer(net, (loss, error), learner, progressPrinter)
 
-    g = gen.generator()
+    g  = gen.generator()
     vg = valGen.generator()
 
-    #losses = []
-    #rates = []
+    plot = PlotModel()
+    losses      = []
+    valueAccs   = []
+    policyAccs  = []
+
     for epoch in range(maxEpochs):
         
         miniBatches = 0
@@ -168,16 +193,19 @@ def trainNet(loadPath = '', load = False):
             miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not inputting more than we're saying we are
             trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) 
 
-       
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
-        net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
 
-        #losses.append(trainer.previous_minibatch_loss_average)
-        #rates.append(lrs[epoch])
+        losses.append([epoch, trainer.previous_minibatch_loss_average])
+        policyAccs.append([epoch, policyAcc])
+        valueAccs.append([epoch, valueAcc])   
+        plot.update(losses, policyAccs, valueAccs)
+        
+        #net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
 
 
-    plotHistory(losses, rates)
+
+
 
 
 
