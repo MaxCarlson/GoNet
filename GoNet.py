@@ -1,14 +1,15 @@
 from __future__ import print_function
+import math
+#import scipy
 import numpy as np
 import cntk as cntk
 from cntk.ops import relu
 from DataGenerator import Generator
 from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
-#import scipy
 
 batchSize = 128
-maxEpochs = 130
+maxEpochs = 100
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
@@ -89,9 +90,36 @@ def printAccuracy(net, string, g, numFromGen):
 
     return int(policyAcc), int(valueAcc)
 
+def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
+    
+    lrs = []
+    for ec in range(maxEpoch):
+        cycle = math.floor(1 + ec / (2 * stepSize))
+        x = math.fabs(ec / stepSize - 2 * cycle + 1) 
+        lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
+    return lrs 
+
+def testLr(maxEpochs, minLr, maxLr):
+    lrs = []
+    lr = minLr
+    step = (maxLr - minLr) / maxEpochs
+    for e in range(maxEpochs):
+        lrs.append(lr)
+        lr += step
+    return lrs
+
+import matplotlib.pyplot as plt
+def plotHistory(loss, rates):
+    #plt.subplot(1, 2, 1)
+    plt.plot(rates, loss)
+    plt.title('model accuracy')
+    plt.ylabel('loss')
+    plt.xlabel('rate')
+    plt.show()
+
 def trainNet(loadPath = '', load = False):
     
-    gen = Generator(featurePath, labelPath, (0, 250), batchSize, loadSize=3)
+    gen = Generator(featurePath, labelPath, (0, 5), batchSize, loadSize=3)
     valGen = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
 
     filters = 64
@@ -103,6 +131,7 @@ def trainNet(loadPath = '', load = False):
     
     if load == True:
         net = cntk.load_model(loadPath)
+        print('Sucessful load of model ', loadPath, '\n')
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
    
@@ -116,9 +145,11 @@ def trainNet(loadPath = '', load = False):
     #error = (valueError + policyError) / 2
     error = valueError
     
-    # Initial learning rate = 0.05
+    # Initial learning rate = 0.04
     #
-    learner = cntk.adam(net.parameters, 0.04, 0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    #lrs = testLr(maxEpochs, 0.0001, 1)
+    lrs = learningRateCycles(maxEpochs, 0.035, 0.09, 3)
+    learner = cntk.adam(net.parameters, lrs, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)
     
@@ -126,6 +157,9 @@ def trainNet(loadPath = '', load = False):
 
     g = gen.generator()
     vg = valGen.generator()
+
+    #losses = []
+    #rates = []
     for epoch in range(maxEpochs):
         
         miniBatches = 0
@@ -137,9 +171,15 @@ def trainNet(loadPath = '', load = False):
        
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
-
         net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
+
+        #losses.append(trainer.previous_minibatch_loss_average)
+        #rates.append(lrs[epoch])
+
+
+    plotHistory(losses, rates)
+
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_5_41_57.dnn', True)
+trainNet('SavedModels/GoNet_4_42_61.dnn', True)
