@@ -151,7 +151,6 @@ def trainNet(loadPath = '', load = False):
     g  = gen.generator()
     vg = valGen.generator()
 
-    plot = PlotModel()
     ls          = []
     losses      = []
     valueAccs   = []
@@ -174,8 +173,9 @@ def trainNet(loadPath = '', load = False):
         ls.clear()
         policyAccs.append([epoch, policyAcc])
         valueAccs.append([epoch, valueAcc])   
+        tbWriter.write_value('Policy Validation Accuracy', policyAcc)
+        tbWriter.write_value('Value Validation Accuracy',   valueAcc)
 
-        plot.update(losses, policyAccs, valueAccs)   
         net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
 
