@@ -109,7 +109,7 @@ def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
 
 def trainNet(loadPath = '', load = False):
     
-    gen     = Generator(featurePath, labelPath, (0, 1), batchSize, loadSize=3)
+    gen     = Generator(featurePath, labelPath, (0, 298), batchSize, loadSize=3)
     valGen  = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
 
     filters     = 64
