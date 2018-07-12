@@ -21,6 +21,8 @@ def Conv(input, filterShape, filters, activation=True, padding=True):
     do = Dropout(0.13)(ba)
     return relu(do) if activation else do
 
+# Two convolutional layers with a skip
+# connection from input to the seconds layers output
 def ResLayer(input, filters):
     c0 = Conv(input, (3,3), filters)
     c1 = Conv(c0,    (3,3), filters, activation=False)
@@ -32,7 +34,9 @@ def ResStack(input, filters, count):
         inp = ResLayer(inp, filters)
     return inp
 
-def ValueHead(input, size, valueOut):
+# One Head of the network for predicting whether
+# an input will result in a win for side to move or not
+def ValueHead(input, size, vOutSize):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
     dr = Dropout(0.14)(b0)
@@ -40,19 +44,23 @@ def ValueHead(input, size, valueOut):
     d0 = Dense(size, activation=None)(r0)
     do = Dropout(0.14)(d0)
     r1 = relu(do)
-    d1 = Dense(valueOut, activation=None)(r1)
-    return d1 #cntk.layers.tanh(d1)
+    d1 = Dense(vOutSize, activation=None)(r1)
+    return d1 
+
+# TODO: Possibly apply a softmax to this as well as ValueHead
+# That or just apply it inside Gopher
+def PolicyHead(input, pOutSize):
+    #pc = Conv(rs, (1,1), 2, 1)
+    #p  = Dense(policyOut, activation=None)(pc)
+    pc = Conv(input, (1,1), 2, 1)
+    return Dense(pOutSize, activation=None)(pc)
 
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
     rs = ResStack(c0, filters, 10)
 
-    # Policy Head
-    pc = Conv(rs, (1,1), 2, 1)
-    p  = Dense(policyOut, activation=None)(pc)
-
-    # Value Head
+    p = PolicyHead(rs, policyOut)
     v = ValueHead(rs, 128, valueOut)
     
     return cntk.combine(p, v)
@@ -102,8 +110,8 @@ def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
     
     lrs = []
     for ec in range(maxEpoch):
-        cycle = math.floor(1 + ec / (2 * stepSize))
-        x = math.fabs(ec / stepSize - 2 * cycle + 1) 
+        cycle   = math.floor(1 + ec / (2 * stepSize))
+        x       = math.fabs(ec / stepSize - 2 * cycle + 1) 
         lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
 
@@ -144,10 +152,13 @@ def trainNet(loadPath = '', load = False):
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
 
+    # TODO: Figure out how to write multiple 'metrics'
     tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=2, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
     trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
     
+    tbWriter.on_write_training_update()
+
     g  = gen.generator()
     vg = valGen.generator()
 
@@ -173,8 +184,6 @@ def trainNet(loadPath = '', load = False):
         ls.clear()
         policyAccs.append([epoch, policyAcc])
         valueAccs.append([epoch, valueAcc])   
-        tbWriter.write_value('Policy Validation Accuracy', policyAcc)
-        tbWriter.write_value('Value Validation Accuracy',   valueAcc)
 
         net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
