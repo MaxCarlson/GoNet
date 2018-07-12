@@ -107,39 +107,6 @@ def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
         lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
 
-def testLr(maxEpochs, minLr, maxLr):
-    lrs = []
-    lr = minLr
-    step = (maxLr - minLr) / maxEpochs
-    for e in range(maxEpochs):
-        lrs.append(lr)
-        lr += step
-    return lrs
-
-import matplotlib.pyplot as plt
-
-class PlotModel():
-    def __init__(self):
-        self.plot = plt.figure()
-        plt.subplot(1, 2, 1)
-        plt.title('model info')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.subplot(1, 2, 2)
-        plt.title('model Acc%')
-        plt.ylabel('Accuracy')
-        plt.xlabel('epoch')
-        plt.legend(['policy', 'validation'], loc='upper left')
-        plt.ion()
-        plt.show()
-
-    def update(self, loss, polAcc, valAcc):
-        plt.plot(loss)
-        plt.plot(polAcc)
-        plt.plot(valAcc)
-        plt.draw()
-        plt.pause(0.001)
-
 def trainNet(loadPath = '', load = False):
     
     gen     = Generator(featurePath, labelPath, (0, 1), batchSize, loadSize=3)
@@ -166,21 +133,26 @@ def trainNet(loadPath = '', load = False):
     # TODO: Figure out how to display/report both errors
     policyError = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
     valueError  = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
-    #error = (valueError + policyError) / 2
-    error = valueError
+    #error      = (valueError + policyError) / 2
+    error       = valueError
     
-    # Initial learning rate = 0.04
+    # Old learning rate = 0.04
     #
-    lrs     = learningRateCycles(maxEpochs, 0.03, 0.045, 5)
+    lrs     = learningRateCycles(maxEpochs, 0.02, 0.03, 4)
     learner = cntk.adam(net.parameters, lrs, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
-    progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
-    trainer         = cntk.Trainer(net, (loss, error), learner, progressPrinter)
+    #cntk.logging.TrainingSummaryProgressCallback()
+    #cntk.CrossValidationConfig()
 
+    tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=2, log_dir='./TensorBoard/', model=net)
+    progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
+    trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
+    
     g  = gen.generator()
     vg = valGen.generator()
 
     plot = PlotModel()
+    ls          = []
     losses      = []
     valueAccs   = []
     policyAccs  = []
@@ -190,18 +162,21 @@ def trainNet(loadPath = '', load = False):
         miniBatches = 0
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
-            miniBatches += 1 # TODO: NEED to make sure this doesn't go over minibatchSize so we're not inputting more than we're saying we are
+            miniBatches += 1 
             trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) 
+            ls.append(trainer.previous_minibatch_loss_average)
+
 
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
 
-        losses.append([epoch, trainer.previous_minibatch_loss_average])
+        losses.append([epoch, sum(ls) / gen.stepsPerEpoch])
+        ls.clear()
         policyAccs.append([epoch, policyAcc])
         valueAccs.append([epoch, valueAcc])   
-        plot.update(losses, policyAccs, valueAccs)
-        
-        #net.save(saveDir + netName + '_{}_{}_{}.dnn'.format(epoch+1, policyAcc, valueAcc))
+
+        plot.update(losses, policyAccs, valueAccs)   
+        net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
 
 
@@ -210,4 +185,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_4_42_61.dnn', True)
+trainNet('SavedModels/GoNet_1_44_62_2.968.dnn', True)
