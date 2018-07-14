@@ -117,16 +117,22 @@ def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
 
 def trainNet(loadPath = '', load = False):
     
-    gen     = Generator(featurePath, labelPath, (0, 298), batchSize, loadSize=3)
-    valGen  = Generator(featurePath, labelPath, (299, 300), batchSize, loadSize=1)
+    # Instantiate generators for both training and
+    # validation datasets. Grab their generator functions
+    tFileShp = (0, 298)
+    vFileShp = (299, 300)
+    gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
+    valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
+    g        = gen.generator()
+    vg       = valGen.generator()
 
     filters     = 64
     inputVar    = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar    = cntk.ops.input_variable((2), np.float32) 
 
-    net = cntk.placeholder()
-    
+    net = cntk.placeholder() 
+
     if load == True:
         net = cntk.load_model(loadPath)
         print('Sucessful load of model ', loadPath, '\n')
@@ -146,8 +152,8 @@ def trainNet(loadPath = '', load = False):
     
     # Old learning rate = 0.04
     #
-    lrs     = learningRateCycles(maxEpochs, 0.02, 0.03, 4)
-    learner = cntk.adam(net.parameters, lrs, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    #lrs     = learningRateCycles(maxEpochs, 0.02, 0.03, 4)
+    learner = cntk.adam(net.parameters, 0.0275, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -157,11 +163,6 @@ def trainNet(loadPath = '', load = False):
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
     trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
     
-    tbWriter.on_write_training_update()
-
-    g  = gen.generator()
-    vg = valGen.generator()
-
     ls          = []
     losses      = []
     valueAccs   = []
@@ -194,4 +195,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_1_44_62_2.968.dnn', True)
+trainNet('SavedModels/GoNet_20_45_64_2.854.dnn', True)
