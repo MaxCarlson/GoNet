@@ -119,8 +119,8 @@ def trainNet(loadPath = '', load = False):
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
-    tFileShp = (0, 298)
-    vFileShp = (299, 300)
+    tFileShp = (0, 447)
+    vFileShp = (448, 449)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
@@ -150,10 +150,8 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    # Old learning rate = 0.04
-    #
     #lrs     = learningRateCycles(maxEpochs, 0.02, 0.03, 4)
-    learner = cntk.adam(net.parameters, 0.0275, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner = cntk.adam(net.parameters, 0.007, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -195,4 +193,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_20_45_64_2.854.dnn', True)
+trainNet('SavedModels/GoNet_2_48_65_2.708.dnn', True)
