@@ -9,7 +9,7 @@ from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolut
 from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
 
 batchSize = 128
-maxEpochs = 100
+maxEpochs = 20
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
@@ -18,15 +18,18 @@ netName = 'GoNet'
 def Conv(input, filterShape, filters, activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) 
-    do = Dropout(0.13)(ba)
-    return relu(do) if activation else do
+    #do = Dropout(0.13)(ba)
+    # TODO: Try LeakRelu
+    #return relu(do) if activation else do
+    return cntk.leaky_relu(ba) if activation else ba
 
 # Two convolutional layers with a skip
 # connection from input to the seconds layers output
 def ResLayer(input, filters):
     c0 = Conv(input, (3,3), filters)
     c1 = Conv(c0,    (3,3), filters, activation=False)
-    return relu(c1 + input)
+    #return relu(c1 + input)
+    return cntk.leaky_relu(c1 + input)
 
 def ResStack(input, filters, count):
     inp = input
@@ -40,10 +43,12 @@ def ValueHead(input, size, vOutSize):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
     dr = Dropout(0.14)(b0)
-    r0 = relu(dr)
+    #r0 = relu(dr)
+    r0 = cntk.leaky_relu(dr)
     d0 = Dense(size, activation=None)(r0)
     do = Dropout(0.14)(d0)
-    r1 = relu(do)
+    #r1 = relu(do)
+    r1 = cntk.leaky_relu(do)
     d1 = Dense(vOutSize, activation=None)(r1)
     return d1 
 
@@ -106,14 +111,21 @@ def printAccuracy(net, string, g, numFromGen):
 # https://arxiv.org/pdf/1506.01186.pdf
 #
 # Doesn't handle permanant decreases in learning rate 
-def learningRateCycles(maxEpoch, minRate, maxRate, stepSize):
+def learningRateCycles(maxEpoch, minRate, maxRate, itsInEpoch):
     
+    stepSize = 2 * itsInEpoch
     lrs = []
     for ec in range(maxEpoch):
-        cycle   = math.floor(1 + ec / (2 * stepSize))
-        x       = math.fabs(ec / stepSize - 2 * cycle + 1) 
-        lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
+        for it in range(itsInEpoch):
+            cycle   = math.floor(1 + it / (2 * stepSize))
+            x       = math.fabs(it / stepSize - 2 * cycle + 1) 
+            lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
+
+# Figure out how to cycle learning rates
+# without using huge amount of memory
+#cntk.learners.learning_parameter_schedule()
+#lrs = learningRateCycles(maxEpochs, 0.01, 0.1, 4500000//128)
 
 def trainNet(loadPath = '', load = False):
     
@@ -150,8 +162,8 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    #lrs     = learningRateCycles(maxEpochs, 0.02, 0.03, 4)
-    learner = cntk.adam(net.parameters, 0.007, epoch_size=gen.samplesEst, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    lrs     = learningRateCycles(maxEpochs, 0.08, 0.11, gen.stepsPerEpoch)
+    learner = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -178,19 +190,15 @@ def trainNet(loadPath = '', load = False):
 
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
-
+        
         losses.append([epoch, sum(ls) / gen.stepsPerEpoch])
         ls.clear()
         policyAccs.append([epoch, policyAcc])
         valueAccs.append([epoch, valueAcc])   
-
-        net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
-
-
-
-
+        
+        net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
 
 
 #trainNet()
-trainNet('SavedModels/GoNet_2_48_65_2.708.dnn', True)
+trainNet('SavedModels/GoNetLeaky_3_38_58_3.167.dnn', True)
