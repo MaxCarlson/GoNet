@@ -114,11 +114,13 @@ def printAccuracy(net, string, g, numFromGen):
 #
 # TODO: Figure out how to cycle learning rates
 # without using huge amount of memory
-def learningRateCycles(maxEpoch, minRate, maxRate, itsInEpoch):
+#
+# Full Cycle length (cycling from min to max, then down to min)
+# is stepMult * itsInEpoch * 2
+def learningRateCycles(maxEpoch, minRate, maxRate, itsInEpoch, stepMult = 2):
     lrs = []
-    cycleLen = 2
-    stepSize = cycleLen * itsInEpoch
-    for ec in range(maxEpoch / cycleLen):
+    stepSize = stepMult * itsInEpoch
+    for ec in range(maxEpoch // stepMult):
         for it in range(stepSize * 2):
             cycle   = math.floor(1 + it / (2 * stepSize))
             x       = math.fabs(it / stepSize - 2 * cycle + 1) 
@@ -160,8 +162,7 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    lrs     = learningRateCycles(maxEpochs, 0.06, 0.09, 15)#gen.stepsPerEpoch)
-
+    lrs     = learningRateCycles(maxEpochs, 0.06, 0.09, gen.stepsPerEpoch)
     learner = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
 
     #cntk.logging.TrainingSummaryProgressCallback()
