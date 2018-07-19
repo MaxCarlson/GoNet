@@ -1,5 +1,5 @@
 # GoNet
-Classifier for the game of Go. Give it a Go board state and it will predict where the pro would move with 39% accuracy
+Classifier for the game of Go. Give it a Go board state and it will predict where the pro would move and how likely either side is to win the game from the current board state. 
 
 ### Current work
 Currently working on adding another head to the network that produces an estimation on who will win from the input board state (Value Head).
