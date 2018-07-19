@@ -111,28 +111,26 @@ def printAccuracy(net, string, g, numFromGen):
 # https://arxiv.org/pdf/1506.01186.pdf
 #
 # Doesn't handle permanant decreases in learning rate 
+#
+# TODO: Figure out how to cycle learning rates
+# without using huge amount of memory
 def learningRateCycles(maxEpoch, minRate, maxRate, itsInEpoch):
-    
-    stepSize = 2 * itsInEpoch
     lrs = []
-    for ec in range(maxEpoch):
-        for it in range(itsInEpoch):
+    cycleLen = 2
+    stepSize = cycleLen * itsInEpoch
+    for ec in range(maxEpoch / cycleLen):
+        for it in range(stepSize * 2):
             cycle   = math.floor(1 + it / (2 * stepSize))
             x       = math.fabs(it / stepSize - 2 * cycle + 1) 
             lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
 
-# Figure out how to cycle learning rates
-# without using huge amount of memory
-#cntk.learners.learning_parameter_schedule()
-#lrs = learningRateCycles(maxEpochs, 0.01, 0.1, 4500000//128)
-
 def trainNet(loadPath = '', load = False):
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
-    tFileShp = (0, 447)
-    vFileShp = (448, 449)
+    tFileShp = (0, 743)
+    vFileShp = (744, 745)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
@@ -162,14 +160,15 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    lrs     = learningRateCycles(maxEpochs, 0.08, 0.11, gen.stepsPerEpoch)
+    lrs     = learningRateCycles(maxEpochs, 0.06, 0.09, 15)#gen.stepsPerEpoch)
+
     learner = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
 
     # TODO: Figure out how to write multiple 'metrics'
-    tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=2, log_dir='./TensorBoard/', model=net)
+    tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=10, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
     trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
     
@@ -201,4 +200,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNetLeaky_3_38_58_3.167.dnn', True)
+trainNet('SavedModels/GoNetLeaky_3_40_58_3.025.dnn', True)
