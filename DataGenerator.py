@@ -19,17 +19,16 @@ import multiprocessing, threading, queue, asyncio
 # TODO: Make more generic and move specific model code outside to another class
 class FileLoader():
     def __init__(self, fileShape, featurePath, labelPath, maxQSize):
-        self.fileShape = fileShape
-        self.featurePath = featurePath
-        self.labelPath = labelPath
-        self.featureList = self.shapeFileList(os.listdir(featurePath))
-        self.labelList = self.shapeFileList(os.listdir(labelPath))
-        # Indices in file lists which we'll shuffle to randomize files
-        self.idx = 0
-        self.maxQSize = maxQSize
-        self.indices = np.arange(0, len(self.featureList))
-        self.queue = queue.Queue(maxsize=maxQSize)
-        thread = threading.Thread(target=self.fillQueue)
+        self.fileShape      = fileShape
+        self.featurePath    = featurePath
+        self.labelPath      = labelPath
+        self.featureList    = self.shapeFileList(os.listdir(featurePath))
+        self.labelList      = self.shapeFileList(os.listdir(labelPath))
+        self.idx            = 0
+        self.maxQSize       = maxQSize
+        self.indices        = np.arange(0, len(self.featureList))
+        self.queue          = queue.Queue(maxsize=maxQSize)
+        thread              = threading.Thread(target=self.fillQueue)
         thread.start()
 
     # Use only the # of files we're told to
@@ -37,10 +36,10 @@ class FileLoader():
         return fileList[self.fileShape[0]:self.fileShape[1]]
 
     def loadFile(self, i):
-        sampleF = self.featureList[self.indices[self.idx]]
-        sampleL = self.labelList[self.indices[self.idx]]      
-        wholePathF = self.featurePath + '/' + sampleF
-        wholePathL = self.labelPath + '/' + sampleL
+        sampleF     = self.featureList[self.indices[self.idx]]
+        sampleL     = self.labelList[self.indices[self.idx]]      
+        wholePathF  = self.featurePath + '/' + sampleF
+        wholePathL  = self.labelPath   + '/' + sampleL
 
         return self.extractNpy(wholePathF, wholePathL)
 
@@ -53,9 +52,9 @@ class FileLoader():
     # Read the data from the file created in CurateData
     # Format it into the binary feature map explained in CurateData
     def extractNpy(self, xFile, yFile):
-        XComp = np.load(xFile)
-        YCol  = np.load(yFile)
-        m = np.shape(YCol)[0]
+        XComp   = np.load(xFile)
+        YCol    = np.load(yFile)
+        m       = np.shape(YCol)[0]
 
         # Move they made
         Y = YCol[0:m, 0]
@@ -66,7 +65,6 @@ class FileLoader():
         #
         # Who won? Encoding is B = 0, W = 1
         W = YCol[0:m, 2]
-
 
         # TODO: Figure out how to use scipy compressed catagorical here (to remove keras/tf requirement)
         #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
@@ -129,13 +127,13 @@ class FileLoader():
 # TODO: Make more generic and move specific model code outside to another class
 class Generator():
     def __init__(self, featurePath, labelPath, fileShape, batchSize, loadSize = 3):
-        self.featurePath = featurePath
-        self.labelPath = labelPath
-        self.batchSize = batchSize
-        self.fileShape = fileShape
-        self.samplesEst = 0
-        self.stepsPerEpoch = 0
-        self.loader = FileLoader(self.fileShape, self.featurePath, self.labelPath, loadSize)
+        self.featurePath    = featurePath
+        self.labelPath      = labelPath
+        self.batchSize      = batchSize
+        self.fileShape      = fileShape
+        self.samplesEst     = 0
+        self.stepsPerEpoch  = 0
+        self.loader         = FileLoader(self.fileShape, self.featurePath, self.labelPath, loadSize)
         self.calcStepsPerEpoch()
 
     # Grab the next chunk of the file
@@ -180,11 +178,11 @@ class Generator():
     # As it likely can't fit in memory
     def generator(self):
 
-        i = 0
-        m = 0
-        mi = 0
-        roll = 0
-        XX, YY = np.zeros(1), np.zeros(1)
+        i       = 0
+        m       = 0
+        mi      = 0
+        roll    = 0
+        XX, YY  = np.zeros(1), np.zeros(1)
         # Number of mini-batches we can read from a file
         fileLoadsPb = -1
         while True:
@@ -211,17 +209,17 @@ class Generator():
     # except possibly one
     def calcStepsPerEpoch(self):
         
-        largest = 0
-        numFiles = len(self.loader.labelList)
-        maxIt = numFiles if numFiles <= 2 else 2
+        largest     = 0
+        numFiles    = len(self.loader.labelList)
+        maxIt       = numFiles if numFiles <= 2 else 2
 
         for i in range(0 , maxIt):
             featurePath = self.featurePath + '/' + self.loader.featureList[i]
-            labelPath = self.labelPath + '/' + self.loader.labelList[i]
-            X, Y, W = self.loader.extractNpy(featurePath, labelPath)
-            size = np.shape(Y)[0]
+            labelPath   = self.labelPath + '/' + self.loader.labelList[i]
+            X, Y, W     = self.loader.extractNpy(featurePath, labelPath)
+            size        = np.shape(Y)[0]
 
             if size > largest: largest = size
 
-        self.samplesEst = largest * numFiles
-        self.stepsPerEpoch = self.samplesEst // self.batchSize
+        self.samplesEst     = largest * numFiles
+        self.stepsPerEpoch  = self.samplesEst // self.batchSize

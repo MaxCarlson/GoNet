@@ -7,8 +7,6 @@ def Conv(input, filterShape, filters, activation=True, padding=True):
     cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
     ba = BatchNormalization()(cn) 
     #do = Dropout(0.13)(ba)
-    # TODO: Try LeakRelu
-    #return relu(do) if activation else do
     return cntk.leaky_relu(ba) if activation else ba
 
 # Two convolutional layers with a skip
@@ -16,7 +14,6 @@ def Conv(input, filterShape, filters, activation=True, padding=True):
 def ResLayer(input, filters):
     c0 = Conv(input, (3,3), filters)
     c1 = Conv(c0,    (3,3), filters, activation=False)
-    #return relu(c1 + input)
     return cntk.leaky_relu(c1 + input)
 
 def ResStack(input, filters, count):
@@ -25,35 +22,30 @@ def ResStack(input, filters, count):
         inp = ResLayer(inp, filters)
     return inp
 
+# TODO: Possibly apply a softmax to this as well as ValueHead
+def PolicyHead(input, pOutSize):
+    pc = Conv(input, (1,1), 2, 1)
+    return Dense(pOutSize, activation=None)(pc)
+
 # One Head of the network for predicting whether
 # an input will result in a win for side to move or not
 def ValueHead(input, size, vOutSize):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
     dr = Dropout(0.14)(b0)
-    #r0 = relu(dr)
     r0 = cntk.leaky_relu(dr)
     d0 = Dense(size, activation=None)(r0)
     do = Dropout(0.14)(d0)
-    #r1 = relu(do)
     r1 = cntk.leaky_relu(do)
     d1 = Dense(vOutSize, activation=None)(r1)
     return d1 
-
-# TODO: Possibly apply a softmax to this as well as ValueHead
-# That or just apply it inside Gopher
-def PolicyHead(input, pOutSize):
-    #pc = Conv(rs, (1,1), 2, 1)
-    #p  = Dense(policyOut, activation=None)(pc)
-    pc = Conv(input, (1,1), 2, 1)
-    return Dense(pOutSize, activation=None)(pc)
 
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
     rs = ResStack(c0, filters, 10)
 
-    p = PolicyHead(rs, policyOut)
-    v = ValueHead(rs, 128, valueOut)
+    p  = PolicyHead(rs, policyOut)
+    v  = ValueHead(rs, 128, valueOut)
     
     return cntk.combine(p, v)
