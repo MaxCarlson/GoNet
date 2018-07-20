@@ -3,10 +3,20 @@ import math
 #import scipy
 import numpy as np
 import cntk as cntk
-from cntk.ops import relu
 from DataGenerator import Generator
-from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
-from Globals import BoardDepth, BoardLength, BoardLengthP, BoardSize, BoardSizeP
+from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
+from Net import goNet
+from win10toast import ToastNotifier
+notifier = ToastNotifier()
+
+def displayNotifs(epoch, cycleLen):
+    title   = 'Epoch {} complete'.format(epoch)
+    msgStr  = ''
+    if (epoch + 1) % cycleLen == 0:
+        msgStr = 'Cycle {} complete!'.format(epoch // cycleLen)
+
+    notifier.show_toast(title, msgStr, duration=1000)
+
 
 batchSize = 128
 maxEpochs = 20
@@ -14,61 +24,6 @@ featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
 netName = 'GoNet'
-
-def Conv(input, filterShape, filters, activation=True, padding=True):
-    cn = Convolution2D(filterShape, filters, activation=None, pad=padding)(input)
-    ba = BatchNormalization()(cn) 
-    #do = Dropout(0.13)(ba)
-    # TODO: Try LeakRelu
-    #return relu(do) if activation else do
-    return cntk.leaky_relu(ba) if activation else ba
-
-# Two convolutional layers with a skip
-# connection from input to the seconds layers output
-def ResLayer(input, filters):
-    c0 = Conv(input, (3,3), filters)
-    c1 = Conv(c0,    (3,3), filters, activation=False)
-    #return relu(c1 + input)
-    return cntk.leaky_relu(c1 + input)
-
-def ResStack(input, filters, count):
-    inp = input
-    for l in range(count):
-        inp = ResLayer(inp, filters)
-    return inp
-
-# One Head of the network for predicting whether
-# an input will result in a win for side to move or not
-def ValueHead(input, size, vOutSize):
-    vc = Convolution2D((1,1), 1, activation=None)(input)
-    b0 = BatchNormalization()(vc)
-    dr = Dropout(0.14)(b0)
-    #r0 = relu(dr)
-    r0 = cntk.leaky_relu(dr)
-    d0 = Dense(size, activation=None)(r0)
-    do = Dropout(0.14)(d0)
-    #r1 = relu(do)
-    r1 = cntk.leaky_relu(do)
-    d1 = Dense(vOutSize, activation=None)(r1)
-    return d1 
-
-# TODO: Possibly apply a softmax to this as well as ValueHead
-# That or just apply it inside Gopher
-def PolicyHead(input, pOutSize):
-    #pc = Conv(rs, (1,1), 2, 1)
-    #p  = Dense(policyOut, activation=None)(pc)
-    pc = Conv(input, (1,1), 2, 1)
-    return Dense(pOutSize, activation=None)(pc)
-
-def goNet(input, filters, policyOut, valueOut):
-
-    c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 10)
-
-    p = PolicyHead(rs, policyOut)
-    v = ValueHead(rs, 128, valueOut)
-    
-    return cntk.combine(p, v)
 
 # Prints the nets accuracy over numFromGen
 # batches read from the generator class
@@ -113,12 +68,13 @@ def printAccuracy(net, string, g, numFromGen):
 # Doesn't handle permanant decreases in learning rate 
 #
 # TODO: Figure out how to cycle learning rates
-# without using huge amount of memory
+# without using huge amount of memory i.e: integrate with cntk.lr_scheduler
 #
 # Full Cycle length (cycling from min to max, then down to min)
 # is stepMult * itsInEpoch * 2
-def learningRateCycles(maxEpoch, minRate, maxRate, itsInEpoch, stepMult = 2):
+def learningRateCycles(maxEpoch, cycleLen, minRate, maxRate, itsInEpoch):
     lrs = []
+    stepMult = cycleLen // 2
     stepSize = stepMult * itsInEpoch
     for ec in range(maxEpoch // stepMult):
         for it in range(stepSize * 2):
@@ -162,8 +118,9 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    lrs     = learningRateCycles(maxEpochs, 0.06, 0.09, gen.stepsPerEpoch)
-    learner = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
+    cycleLen    = 4
+    lrs         = learningRateCycles(maxEpochs, cycleLen, 0.06, 0.09, gen.stepsPerEpoch)
+    learner     = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -175,8 +132,8 @@ def trainNet(loadPath = '', load = False):
     
     ls          = []
     losses      = []
-    valueAccs   = []
-    policyAccs  = []
+    #valueAccs   = []
+    #policyAccs  = []
 
     for epoch in range(maxEpochs):
         
@@ -193,9 +150,10 @@ def trainNet(loadPath = '', load = False):
         
         losses.append([epoch, sum(ls) / gen.stepsPerEpoch])
         ls.clear()
-        policyAccs.append([epoch, policyAcc])
-        valueAccs.append([epoch, valueAcc])   
-        
+        #policyAccs.append([epoch, policyAcc])
+        #valueAccs.append([epoch, valueAcc])   
+
+        displayNotifs(epoch, cycleLen)
         net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
 
