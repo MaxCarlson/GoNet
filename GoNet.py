@@ -3,19 +3,22 @@ import math
 #import scipy
 import numpy as np
 import cntk as cntk
-from DataGenerator import Generator
-from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 from Net import goNet
+from math import exp, log
+from DataGenerator import Generator
 from win10toast import ToastNotifier
-notifier = ToastNotifier()
+from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
+
+# TODO: Not working!
 def displayNotifs(epoch, cycleLen):
     title   = 'Epoch {} complete'.format(epoch)
     msgStr  = ''
     if (epoch + 1) % cycleLen == 0:
         msgStr = 'Cycle {} complete!'.format(epoch // cycleLen)
 
-    notifier.show_toast(title, msgStr, duration=1000)
+    notifier = ToastNotifier()
+    notifier.show_toast(title, duration=100, threaded=True)
 
 
 batchSize = 128
@@ -83,6 +86,17 @@ def learningRateCycles(maxEpoch, cycleLen, minRate, maxRate, itsInEpoch):
             lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
 
+def findOptLrExp(maxEpoch, minRate, maxRate, itsInEpoch):
+    lr       = []
+    lnMin    = log(minRate)
+    totalIts = itsInEpoch * maxEpoch
+    step     = (log(maxRate) - lnMin) / totalIts
+    for i in range(totalIts):
+        tmp = lnMin + i * step
+        lr.append(exp(tmp))
+
+    return lr
+
 def trainNet(loadPath = '', load = False):
     
     # Instantiate generators for both training and
@@ -118,15 +132,18 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
-    cycleLen    = 4
-    lrs         = learningRateCycles(maxEpochs, cycleLen, 0.06, 0.09, gen.stepsPerEpoch)
-    learner     = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) # Old net 0.007lr
+    cycleLen    = 2
+    #lrs         = learningRateCycles(maxEpochs, cycleLen, 0.006, 0.0068, gen.stepsPerEpoch)
+    # TODO: Use this so we don't have to generate scchedule for every iteration
+    #cntk.learners.learning_parameter_schedule(lrs, batchSize, gen.stepsPerEpoch*cycleLen)
+    #lrs         = findOptLr(1, 0.001, 0.07, gen.stepsPerEpoch//3)
+    learner     = cntk.adam(net.parameters, 0.006, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
 
     # TODO: Figure out how to write multiple 'metrics'
-    tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=10, log_dir='./TensorBoard/', model=net)
+    tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=1, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
     trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
     
@@ -153,10 +170,13 @@ def trainNet(loadPath = '', load = False):
         #policyAccs.append([epoch, policyAcc])
         #valueAccs.append([epoch, valueAcc])   
 
-        displayNotifs(epoch, cycleLen)
+
+        # TODO: When loading a model, make sure to save it with epoch+previousModelEpoch
+        # so that we can have contiguous epoch counters on save&load
         net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
+        displayNotifs(epoch, cycleLen)
 
 
 
 #trainNet()
-trainNet('SavedModels/GoNetLeaky_3_40_58_3.025.dnn', True)
+trainNet('SavedModels/GoNetLeaky_1_47_64_2.557.dnn', True)
