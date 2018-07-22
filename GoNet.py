@@ -6,20 +6,8 @@ import cntk as cntk
 from Net import goNet
 from math import exp, log
 from DataGenerator import Generator
-from win10toast import ToastNotifier
+from misc import printAccuracy, learningRateCycles, findOptLr, netHeatmap
 from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
-
-
-# TODO: Not working!
-def displayNotifs(epoch, cycleLen):
-    title   = 'Epoch {} complete'.format(epoch)
-    msgStr  = ''
-    if (epoch + 1) % cycleLen == 0:
-        msgStr = 'Cycle {} complete!'.format(epoch // cycleLen)
-
-    notifier = ToastNotifier()
-    notifier.show_toast(title, duration=100, threaded=True)
-
 
 batchSize = 128
 maxEpochs = 20
@@ -27,75 +15,6 @@ featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
 netName = 'GoNet'
-
-# Prints the nets accuracy over numFromGen
-# batches read from the generator class
-#
-# TODO: Figure out how to get this done with
-# cntk.classification_error so it's on the GPU!
-def printAccuracy(net, string, g, numFromGen):
-
-    counted = 0
-    pcorrect = 0
-    vcorrect = 0
-    for i in range(numFromGen):
-        X, Y, W = next(g)
-        outs = net(X)
-        
-        # PolcyNetworkAcc
-        pred = np.argmax(Y, 1)
-        indx = np.argmax(outs[0], 1)
-        psame = pred == indx
-
-        # Value Network Acc
-        pred = np.argmax(W, 1)
-        indx = np.argmax(outs[1], 1)
-        vsame = pred == indx
-
-        counted += np.shape(Y)[0]
-        pcorrect += np.sum(psame)
-        vcorrect += np.sum(vsame)
-
-    valueAcc  = (vcorrect/counted)*100.0
-    policyAcc = (pcorrect/counted)*100.0
-    print(string)
-    print('PolicyAcc', policyAcc)
-    print('ValueAcc',  valueAcc)
-
-    return int(policyAcc), int(valueAcc)
-
-# Cycle the learning rate linearly between min and max rates
-# for apparently faster/better training. 
-# https://arxiv.org/pdf/1506.01186.pdf
-#
-# Doesn't handle permanant decreases in learning rate 
-#
-# TODO: Figure out how to cycle learning rates
-# without using huge amount of memory i.e: integrate with cntk.lr_scheduler
-#
-# Full Cycle length (cycling from min to max, then down to min)
-# is stepMult * itsInEpoch * 2
-def learningRateCycles(maxEpoch, cycleLen, minRate, maxRate, itsInEpoch):
-    lrs = []
-    stepMult = cycleLen // 2
-    stepSize = stepMult * itsInEpoch
-    for ec in range(maxEpoch // stepMult):
-        for it in range(stepSize * 2):
-            cycle   = math.floor(1 + it / (2 * stepSize))
-            x       = math.fabs(it / stepSize - 2 * cycle + 1) 
-            lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
-    return lrs 
-
-def findOptLrExp(maxEpoch, minRate, maxRate, itsInEpoch):
-    lr       = []
-    lnMin    = log(minRate)
-    totalIts = itsInEpoch * maxEpoch
-    step     = (log(maxRate) - lnMin) / totalIts
-    for i in range(totalIts):
-        tmp = lnMin + i * step
-        lr.append(exp(tmp))
-
-    return lr
 
 def trainNet(loadPath = '', load = False):
     
@@ -120,6 +39,8 @@ def trainNet(loadPath = '', load = False):
         print('Sucessful load of model ', loadPath, '\n')
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
+
+    #netHeatmap(net, g)
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
@@ -133,11 +54,12 @@ def trainNet(loadPath = '', load = False):
     error       = valueError
     
     cycleLen    = 2
-    #lrs         = learningRateCycles(maxEpochs, cycleLen, 0.006, 0.0068, gen.stepsPerEpoch)
+    lrs         = learningRateCycles(maxEpochs, cycleLen, 0.0001, 0.00025, gen.stepsPerEpoch)
     # TODO: Use this so we don't have to generate scchedule for every iteration
     #cntk.learners.learning_parameter_schedule(lrs, batchSize, gen.stepsPerEpoch*cycleLen)
-    #lrs         = findOptLr(1, 0.001, 0.07, gen.stepsPerEpoch//3)
-    learner     = cntk.adam(net.parameters, 0.006, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    #lrs         = findOptLr(1, 0.00001, 0.01, gen.stepsPerEpoch)
+    #Current Best 0.0001-0.00025
+    learner     = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -174,7 +96,6 @@ def trainNet(loadPath = '', load = False):
         # TODO: When loading a model, make sure to save it with epoch+previousModelEpoch
         # so that we can have contiguous epoch counters on save&load
         net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
-        displayNotifs(epoch, cycleLen)
 
 
 

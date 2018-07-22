@@ -24,6 +24,9 @@
     <Compile Include="DataGenerator.py" />
     <Compile Include="Globals.py" />
     <Compile Include="GoNet.py" />
+    <Compile Include="misc.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Net.py">
       <SubType>Code</SubType>
     </Compile>
