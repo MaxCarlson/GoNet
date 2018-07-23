@@ -9,7 +9,7 @@ Value Head  ~70%
 ### Data format
 ### Example 
 Heatmap of networks PolicyHead outputs over an input board state
-![](https://raw.githubusercontent.com/MaxCarlson/GoNet/master/img/Examples/NetInOut.PNG)
+![](https://raw.githubusercontent.com/MaxCarlson/GoNet/master/img/Examples/NetInOut2.PNG)
 
 #### Features
 Go net is designed to take input data similarly formatted to [AlphaZero](https://applied-data.science/static/main/res/alpha_go_zero_cheat_sheet.png). The input data is in the format (Samples)xPx19x19 where P is the total number of binary feature planes, and 19x19 is the go game board or the color plane. The first feature plane (color) is either all zeros (BLACK) or all ones (WHITE). The following feature planes are separated into stacks of two planes per board state. The first plane (m) after the color plane is a binary grid of the side-to-moves pieces from the most recent board state (S), while plane m+1 is composed of a similar structure but consists of the opponents pieces from state S. Further feature planes are built from states S-n where n is at most (P-1)/2.
