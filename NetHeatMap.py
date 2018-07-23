@@ -1,6 +1,7 @@
 import numpy as np
 from Globals import BoardLength
 import matplotlib.pyplot as plt
+import cntk
 
 class NetHeatMap:
     def __init__(self, net, generator):
@@ -18,11 +19,13 @@ class NetHeatMap:
             for y in range(BoardLength):
                 exOut[x,y] = outs[0][0][y * BoardLength + x]
 
+        exOut = cntk.softmax(exOut).eval()
         imgIn, imgOut = self.buildImages(X[0], exOut)
 
         fig = plt.figure(frameon=False)
         plt.imshow(imgIn)
         plt.imshow(imgOut, cmap=plt.cm.viridis, alpha=.6, interpolation='bilinear')
+        plt.colorbar()
         ticks   = np.arange((5000//BoardLength)//2, 5000, 5000//BoardLength)
         labels = ('A','B','C','D','E','F','G','H','J','K','L','M','N','O','P','Q','R','S','T')
         plt.xticks(ticks, labels)
