@@ -36,7 +36,7 @@ def trainNet(loadPath = '', load = False):
 
     if load == True:
         net = cntk.load_model(loadPath)
-        print('Sucessful load of model ', loadPath, '\n')
+        print('Sucessful load of model', loadPath, '\n')
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
 
@@ -103,4 +103,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNetLeaky_2_47_65_2.484.dnn', True)
+trainNet('SavedModels/GoNetLeaky_1_47_65_2.477.dnn', True)
