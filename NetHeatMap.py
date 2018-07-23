@@ -41,7 +41,7 @@ class NetHeatMap:
         return str.format(toMvStr), toMvStr
 
     def winChanceStr(self, win, toMvStr, predWin):
-        predStr = '{:.2f}% predicted win chance for {}'.format(predWin, toMvStr)
+        predStr = '{:.2f}% predicted win chance for {}'.format(predWin*100.0, toMvStr)
         winName = toMvStr if win == 1 else 'Not'
         if winName == 'Not':
             winName = 'Black' if toMvStr == 'White' else 'White'
