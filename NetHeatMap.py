@@ -21,12 +21,14 @@ class NetHeatMap:
 
             fig     = plt.figure(frameon=False)
             ax      = fig.add_subplot(111)
-            plt.text(0.5, 1.06, toMvTxt, ha='center', va='center', transform=ax.transAxes)
-            plt.text(0.5, 1.03, predStr, ha='center', va='center', transform=ax.transAxes)
+            plt.text(0.5, 1.10, toMvTxt, ha='center', va='center', transform=ax.transAxes)
+            plt.text(0.5, 1.06, predStr, ha='center', va='center', transform=ax.transAxes)
+            plt.text(0.5, 1.02, winStr , ha='center', va='center', transform=ax.transAxes)
+
             plt.imshow(imgIn)
             plt.imshow(imgOut, cmap=plt.cm.hot, alpha=.6, interpolation='bilinear')
             cbar    = plt.colorbar()
-            cbar.set_label('% Move chance', rotation=270)
+            cbar.set_label('% Move chance', rotation=270, labelpad=10)
             ticks   = np.arange((5000/BoardLength)/2, 5000, 5000/BoardLength)
             labels  = ('A','B','C','D','E','F','G','H','J','K','L','M','N','O','P','Q','R','S','T')
             plt.xticks(ticks, labels) 
@@ -40,8 +42,10 @@ class NetHeatMap:
 
     def winChanceStr(self, win, toMvStr, predWin):
         predStr = '{:.2f}% predicted win chance for {}'.format(predWin, toMvStr)
-        winName = toMvStr
-        actWin  = '{} wins'
+        winName = toMvStr if win == 1 else 'Not'
+        if winName == 'Not':
+            winName = 'Black' if toMvStr == 'White' else 'White'
+        actWin  = 'Actual winner of game: {}'.format(winName)
         return predStr, actWin
 
     def processInput(self, count):
@@ -50,7 +54,7 @@ class NetHeatMap:
 
         for i in range(count):
             exOut   = np.zeros((BoardLength, BoardLength))
-            outVec  = cntk.softmax(outs[0][i]).eval()
+            outVec  = cntk.softmax(outs[0][i]).eval() * 100.0
             winVec  = cntk.softmax(outs[1][i]).eval()
             for x in range(BoardLength):
                 for y in range(BoardLength):
@@ -71,7 +75,7 @@ class NetHeatMap:
         boardImg    = self.buildBoardImg(board, boardImg, toMove)
         outImg      = self.buildOutImage(netOut)
         # Remove moves with < 0.5% from heatmap
-        outImg[outImg < 0.005] = np.nan
+        #outImg[outImg < 0.005] = np.nan
 
         return boardImg, outImg
 
