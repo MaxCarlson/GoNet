@@ -115,12 +115,11 @@ def buildOutImage(netOut, shp):
     return outImg
 
 def buildImages(boards, netOut):
-
     # Build the nets input image (with pieces and such)
     stm     = boards[1]
     opp     = boards[2] + boards[2]
     board   = stm + opp
-    w       = plt.imread('./img/shellStone.png')
+    w       = plt.imread('./img/whiteStone.png')
     b       = plt.imread('./img/blackStone.png')
     shp     = np.shape(w)
     boardImg    = np.zeros((BoardLength*shp[0],BoardLength*shp[1],shp[2]))
@@ -133,18 +132,17 @@ def netHeatmap(net, gen):
 
     X, Y, W = next(gen)
     outs    = net(X)
-    exOut   = np.reshape(outs[0][0], (BoardLength, BoardLength))
+    #exOut   = np.reshape(outs[0][0], (BoardLength, BoardLength))
+    exOut = np.zeros((BoardLength, BoardLength))
+    for x in range(BoardLength):
+        for y in range(BoardLength):
+            exOut[x,y] = outs[0][0][y * BoardLength + x]
 
     imgIn, imgOut = buildImages(X[0], exOut)
 
-    fig     = plt.figure(frameon=False)
+    fig = plt.figure(frameon=False)
     plt.imshow(imgIn)
     plt.imshow(imgOut, cmap=plt.cm.viridis, alpha=.5, interpolation='bilinear')
-
-    #Z1      = np.add.outer(range(19), range(19)) % 2
-    #im1     = plt.imshow(Z1, cmap=plt.cm.gray, interpolation='nearest')
-    #im2     = plt.imshow(exIn)
-    #im3     = plt.imshow(exOut, cmap=plt.cm.viridis, alpha=.9, interpolation='bilinear')
     plt.show()
     a = 5
 
