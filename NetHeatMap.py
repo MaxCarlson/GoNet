@@ -15,11 +15,14 @@ class NetHeatMap:
 
         inpGen = self.processInput(count)
         for i in range(count):
-            imgIn, imgOut, toMove = next(inpGen)
+            imgIn, imgOut, toMove, win, predWin = next(inpGen)
+            toMvTxt, toMvStr = self.toMoveStr(toMove)
+            predStr, winStr  = self.winChanceStr(win, toMvStr, predWin)
 
             fig     = plt.figure(frameon=False)
             ax      = fig.add_subplot(111)
-            plt.text(0.5, 1.03, self.toMoveStr(toMove), ha='center', va='center', transform=ax.transAxes)
+            plt.text(0.5, 1.06, toMvTxt, ha='center', va='center', transform=ax.transAxes)
+            plt.text(0.5, 1.03, predStr, ha='center', va='center', transform=ax.transAxes)
             plt.imshow(imgIn)
             plt.imshow(imgOut, cmap=plt.cm.hot, alpha=.6, interpolation='bilinear')
             cbar    = plt.colorbar()
@@ -32,7 +35,14 @@ class NetHeatMap:
 
     def toMoveStr(self, toMove):
         str = '{} to move'
-        return str.format('Black') if toMove == BLACK else str.format('White')
+        toMvStr = 'Black' if toMove == BLACK else 'White'
+        return str.format(toMvStr), toMvStr
+
+    def winChanceStr(self, win, toMvStr, predWin):
+        predStr = '{:.2f}% predicted win chance for {}'.format(predWin, toMvStr)
+        winName = toMvStr
+        actWin  = '{} wins'
+        return predStr, actWin
 
     def processInput(self, count):
         X, Y, W = next(self.gen)
@@ -41,14 +51,16 @@ class NetHeatMap:
         for i in range(count):
             exOut   = np.zeros((BoardLength, BoardLength))
             outVec  = cntk.softmax(outs[0][i]).eval()
+            winVec  = cntk.softmax(outs[1][i]).eval()
             for x in range(BoardLength):
                 for y in range(BoardLength):
                     exOut[x,y] = outVec[y * BoardLength + x]
 
+            win           = W[i,1]
+            predWin       = winVec[1]
             toMove        = X[i,0,0,0]
-            sum = np.sum(exOut)
             imgIn, imgOut = self.buildImages(X[i], exOut, toMove)
-            yield imgIn, imgOut, toMove
+            yield imgIn, imgOut, toMove, win, predWin
 
     def buildImages(self, boards, netOut, toMove):
         # Build the boards with the right color stone based on stm
@@ -58,6 +70,8 @@ class NetHeatMap:
         boardImg    = np.zeros((BoardLength*self.shp[0],BoardLength*self.shp[1],self.shp[2]))
         boardImg    = self.buildBoardImg(board, boardImg, toMove)
         outImg      = self.buildOutImage(netOut)
+        # Remove moves with < 0.5% from heatmap
+        outImg[outImg < 0.005] = np.nan
 
         return boardImg, outImg
 
