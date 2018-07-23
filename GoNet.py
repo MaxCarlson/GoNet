@@ -1,6 +1,5 @@
 from __future__ import print_function
 import math
-#import scipy
 import numpy as np
 import cntk as cntk
 from Net import goNet
@@ -11,6 +10,7 @@ from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
 batchSize = 128
 maxEpochs = 20
+# TODO: Command line args
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
@@ -20,6 +20,7 @@ def trainNet(loadPath = '', load = False):
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
+    # TODO: Command line args
     tFileShp = (0, 743)
     vFileShp = (744, 745)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
@@ -34,6 +35,7 @@ def trainNet(loadPath = '', load = False):
 
     net = cntk.placeholder() 
 
+    # TODO: Command line args instead of hardcoding
     if load == True:
         net = cntk.load_model(loadPath)
         print('Sucessful load of model', loadPath, '\n')
@@ -42,8 +44,9 @@ def trainNet(loadPath = '', load = False):
 
     # Comment to forgoe generating heat map
     # of network outputs over input board state
-    hmap = NetHeatMap(net, g)
-    hmap.genHeatmap(15)
+    # TODO: Add command line flags for this and other optional things
+    #hmap = NetHeatMap(net, g)
+    #hmap.genHeatmap(15)
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
@@ -56,6 +59,7 @@ def trainNet(loadPath = '', load = False):
     #error      = (valueError + policyError) / 2
     error       = valueError
     
+    # TODO: Command line args for lr as well as cycling lr
     cycleLen    = 2
     #lrs         = learningRateCycles(maxEpochs, cycleLen, 0.0001, 0.00025, gen.stepsPerEpoch)
     # TODO: Use this so we don't have to generate scchedule for every iteration
