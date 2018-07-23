@@ -43,7 +43,7 @@ def trainNet(loadPath = '', load = False):
     # Comment to forgoe generating heat map
     # of network outputs over input board state
     hmap = NetHeatMap(net, g)
-    hmap.genHeatmap()
+    hmap.genHeatmap(15)
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
