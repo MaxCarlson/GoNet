@@ -5,7 +5,8 @@ import numpy as np
 import cntk as cntk
 from Net import goNet
 from DataGenerator import Generator
-from misc import printAccuracy, learningRateCycles, findOptLr, netHeatmap
+from NetHeatMap import NetHeatMap
+from misc import printAccuracy, learningRateCycles, findOptLr
 from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
 batchSize = 128
@@ -39,7 +40,10 @@ def trainNet(loadPath = '', load = False):
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
 
-    netHeatmap(net, g)
+    # Comment to forgoe generating heat map
+    # of network outputs over input board state
+    hmap = NetHeatMap(net, g)
+    hmap.genHeatmap()
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
