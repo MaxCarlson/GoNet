@@ -1,4 +1,6 @@
 import numpy as np
+import math
+from math import exp, log
 from Globals import BoardLength
 import matplotlib.pyplot as plt
 
@@ -78,37 +80,71 @@ def findOptLr(maxEpoch, minRate, maxRate, itsInEpoch):
 
     return lr
 
-def rebuildBoard(boards):
-    stm     = boards[1]
-    # Make opponent 2's
-    opp     = boards[2] + boards[2]
-    board   = stm + opp
-    colAr   = np.zeros((19, 19, 3), np.uint8)
-    colAr   += np.uint8([86,47,14]) 
+def addStoneToImg(boardImg, x, y, stoneImg):
+    shp = np.shape(stoneImg)
+    offX = x * shp[0]
+    offY = y * shp[1]
+    boardImg[offX:offX+shp[0], offY:offY+shp[1]] = stoneImg
+
+def buildBoardImg(board, boardImg, w, b):
     BLACK   = 1
     WHITE   = 2
-    
-    # Couldn't figure out how to vectorize this with np
     for x in range(BoardLength):
         for y in range(BoardLength):
-            if stm[x][y]    == BLACK:
-                colAr[x][y] = [0,0,0]
-            elif opp[x][y]  == WHITE:
-                colAr[x][y] = [255,255,255]
+            img = None
+            if board[x, y] == BLACK:
+                img = b
+            elif board[x, y] == WHITE:
+                img = w
+            else:
+                continue
+            addStoneToImg(boardImg, x, y, img)
 
-    return colAr
+    return boardImg
+
+# Convert the output image to the same
+# shape as the board image with pieces
+def buildOutImage(netOut, shp):
+    outImg = np.zeros((BoardLength*shp[0],BoardLength*shp[1]))
+
+    for x in range(BoardLength):
+        for y in range(BoardLength):
+            offX = x * shp[0]
+            offY = y * shp[1]
+            outImg[offX:offX+shp[0], offY:offY*shp[1]] = netOut[x,y]
+    return outImg
+
+def buildImages(boards, netOut):
+
+    # Build the nets input image (with pieces and such)
+    stm     = boards[1]
+    opp     = boards[2] + boards[2]
+    board   = stm + opp
+    w       = plt.imread('./img/shellStone.png')
+    b       = plt.imread('./img/blackStone.png')
+    shp     = np.shape(w)
+    boardImg    = np.zeros((BoardLength*shp[0],BoardLength*shp[1],shp[2]))
+    boardImg    = buildBoardImg(board, boardImg, w, b)
+    outImg      = buildOutImage(netOut, shp)
+
+    return boardImg, outImg
 
 def netHeatmap(net, gen):
 
     X, Y, W = next(gen)
     outs    = net(X)
-    exIn    = rebuildBoard(X[0])
     exOut   = np.reshape(outs[0][0], (BoardLength, BoardLength))
 
-    fig = plt.figure(frameon=False)
-    Z1 = np.add.outer(range(19), range(19)) % 2
-    im1  = plt.imshow(Z1, cmap=plt.cm.gray, interpolation='nearest')
-    im2 = plt.imshow(exOut, cmap=plt.cm.viridis, alpha=.9, interpolation='bilinear')
+    imgIn, imgOut = buildImages(X[0], exOut)
+
+    fig     = plt.figure(frameon=False)
+    plt.imshow(imgIn)
+    plt.imshow(imgOut, cmap=plt.cm.viridis, alpha=.5, interpolation='bilinear')
+
+    #Z1      = np.add.outer(range(19), range(19)) % 2
+    #im1     = plt.imshow(Z1, cmap=plt.cm.gray, interpolation='nearest')
+    #im2     = plt.imshow(exIn)
+    #im3     = plt.imshow(exOut, cmap=plt.cm.viridis, alpha=.9, interpolation='bilinear')
     plt.show()
     a = 5
 

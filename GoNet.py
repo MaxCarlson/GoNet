@@ -4,7 +4,6 @@ import math
 import numpy as np
 import cntk as cntk
 from Net import goNet
-from math import exp, log
 from DataGenerator import Generator
 from misc import printAccuracy, learningRateCycles, findOptLr, netHeatmap
 from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
@@ -40,7 +39,7 @@ def trainNet(loadPath = '', load = False):
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
 
-    #netHeatmap(net, g)
+    netHeatmap(net, g)
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
@@ -54,12 +53,12 @@ def trainNet(loadPath = '', load = False):
     error       = valueError
     
     cycleLen    = 2
-    lrs         = learningRateCycles(maxEpochs, cycleLen, 0.0001, 0.00025, gen.stepsPerEpoch)
+    #lrs         = learningRateCycles(maxEpochs, cycleLen, 0.0001, 0.00025, gen.stepsPerEpoch)
     # TODO: Use this so we don't have to generate scchedule for every iteration
     #cntk.learners.learning_parameter_schedule(lrs, batchSize, gen.stepsPerEpoch*cycleLen)
     #lrs         = findOptLr(1, 0.00001, 0.01, gen.stepsPerEpoch)
     #Current Best 0.0001-0.00025
-    learner     = cntk.adam(net.parameters, lrs, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner     = cntk.adam(net.parameters, 0.0001, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -100,4 +99,4 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNetLeaky_1_47_64_2.557.dnn', True)
+trainNet('SavedModels/GoNetLeaky_2_47_65_2.484.dnn', True)
