@@ -6,12 +6,6 @@ Policy Head ~50%
 
 Value Head  ~70%
 
-### Current work
-Refining the network composition.
-
-## Data
-In order to produce the data format required for GoNet you must either feed GoNet data produced from the [TYGEM dataset](https://github.com/yenw/computer-go-dataset#1-tygem-dataset) with my [TygemParser](https://github.com/MaxCarlson/TygemParser) or use a similar data converter for the [Professional dataset](https://github.com/yenw/computer-go-dataset#1-tygem-dataset) located in my [GoClassifier](https://github.com/MaxCarlson/GoClassifier). Or, produce your own dataset in the correct format.
-
 ### Data format
 ### Example 
 Heatmap overlay on input board state
@@ -22,3 +16,9 @@ Go net is designed to take input data similarly formatted to [AlphaZero](https:/
 
 #### Labels
 The input format GoNet takes labels in is (Samples)x3. The three labels in order are: Index of the move on the board, color of side to move (BLACK = 1, WHITE = 2), and who won the game.
+
+### Current work
+Refining the network composition.
+
+## Data
+In order to produce the data format required for GoNet you must either feed GoNet data produced from the [TYGEM dataset](https://github.com/yenw/computer-go-dataset#1-tygem-dataset) with my [TygemParser](https://github.com/MaxCarlson/TygemParser) or use a similar data converter for the [Professional dataset](https://github.com/yenw/computer-go-dataset#1-tygem-dataset) located in my [GoClassifier](https://github.com/MaxCarlson/GoClassifier). Or, produce your own dataset in the correct format.
