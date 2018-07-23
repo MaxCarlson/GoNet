@@ -8,7 +8,7 @@ Value Head  ~70%
 
 ### Data format
 ### Example 
-Heatmap overlay on input board state
+Heatmap of networks PolicyHead outputs over an input board state
 ![](https://raw.githubusercontent.com/MaxCarlson/GoNet/master/img/Examples/NetInOut.PNG)
 
 #### Features
