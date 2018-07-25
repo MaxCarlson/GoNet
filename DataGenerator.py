@@ -60,15 +60,9 @@ class FileLoader():
         Y = YCol[0:m, 0]
         # Color of player moving
         C = YCol[0:m, 1]
-
-        # Testing encoading of winner from side to move
-        #
-        # Who won? Encoding is B = 0, W = 1
+        # Who won? Encoding is 0 side to move
+        # lost game, 1 stm won game
         W = YCol[0:m, 2]
-
-        # TODO: Figure out how to use scipy compressed catagorical here (to remove keras/tf requirement)
-        #Y = scipy.sparse.csr_matrix((np.ones(minibatchSize, np.float32), (range(minibatchSize), Y)), shape=(minibatchSize, BoardSize))
-        #Y = scipy.sparse.csc_matrix(Y, shape=(minibatchSize, BoardSize))    
         Y = tf.keras.utils.to_categorical(Y, BoardSize)
         W = tf.keras.utils.to_categorical(W, 2)
         X = np.zeros((m, BoardDepth, BoardLength, BoardLength))
@@ -78,9 +72,9 @@ class FileLoader():
         # for each example
         for i in range(0, m):
             # Add both layers representing player and opponent stones
-            color = C[i]
+            color    = C[i]
             opponent = WHITE if color == BLACK else BLACK
-            index = 0
+            index    = 0
             for j in range(1, BoardDepth, 2):
                 X[i, j]   = XComp[i, index] == color
                 X[i, j+1] = XComp[i, index] == opponent

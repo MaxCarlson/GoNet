@@ -1,5 +1,7 @@
 from __future__ import print_function
+import os
 import math
+import glob
 import numpy as np
 import cntk as cntk
 from Net import goNet
@@ -10,20 +12,42 @@ from misc import printAccuracy, learningRateCycles, findOptLr
 from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
 batchSize = 128
-maxEpochs = 20
+maxEpochs = 50
+defaultLr = 0.01
 # TODO: Command line args
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
 netName = 'GoNet'
 
-def trainNet(loadPath = '', load = False):
+def findLatestModel(loadName):
+    latestModel = loadName
+    if loadName == 'latest':
+        models = glob.glob(saveDir + '*')
+        latestModel = max(models, key=os.path.getctime)
+    
+    return latestModel
+
+def loadModel(args):
+    net       = cntk.placeholder() 
+    modelName = findLatestModel(args.load)
+
+    if modelName != None:
+        net = cntk.load_model(modelName)
+        print('Sucessful load of model', modelName, '\n')
+    else:
+        net = goNet(inputVar, filters, BoardSize, 2)
+        print('Created new network!')
+
+    return net
+
+def trainNet(args): #loadPath = '', load = False
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
     # TODO: Command line args
-    tFileShp = (0, 743)
-    vFileShp = (744, 745)
+    tFileShp = (0,1)#(0, 743)
+    vFileShp = (5,6)#(744, 745)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
@@ -34,20 +58,13 @@ def trainNet(loadPath = '', load = False):
     policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar    = cntk.ops.input_variable((2), np.float32) 
 
-    net = cntk.placeholder() 
+    net = loadModel(args)
 
-    # TODO: Command line args instead of hardcoding
-    if load == True:
-        net = cntk.load_model(loadPath)
-        print('Sucessful load of model', loadPath, '\n')
-    else:
-        net = goNet(inputVar, filters, BoardSize, 2)
-
-    # Comment to forgoe generating heat map
-    # of network outputs over input board state
-    # TODO: Add command line flags for this and other optional things
-    #hmap = NetHeatMap(net, g)
-    #hmap.genHeatmap(15)
+    # Show a heatmap of network outputs 
+    # over an input board state
+    if args.heatMap:
+        hmap = NetHeatMap(net, g)
+        hmap.genHeatmap(args.heatMap)
    
     # Loss and accuracy
     policyLoss  = cntk.cross_entropy_with_softmax(net.outputs[0], policyVar)
@@ -59,15 +76,17 @@ def trainNet(loadPath = '', load = False):
     valueError  = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
     #error      = (valueError + policyError) / 2
     error       = valueError
-    
-    # TODO: Command line args for lr as well as cycling lr
-    cycleLen    = 2
-    #lrs         = learningRateCycles(maxEpochs, cycleLen, 0.0001, 0.00025, gen.stepsPerEpoch)
-    # TODO: Use this so we don't have to generate scchedule for every iteration
-    #cntk.learners.learning_parameter_schedule(lrs, batchSize, gen.stepsPerEpoch*cycleLen)
-    #lrs         = findOptLr(1, 0.00001, 0.01, gen.stepsPerEpoch)
-    #Current Best 0.0001-0.00025
-    learner     = cntk.adam(net.parameters, 0.0003, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+
+    lrc = args.lr
+    if args.cycleLr[0]:
+        lrc = learningRateCycles(1, args.cycleLr[0], args.cycleLr[1], args.cycleLr[2], gen.stepsPerEpoch*args.cycleLr[0])
+    elif args.optLr:
+        lrc = findOptLr(maxEpochs, args.optLr[0], args.optLr[1], gen.stepsPerEpoch)
+
+
+    lrc = cntk.learners.learning_parameter_schedule(lrc, batchSize, gen.stepsPerEpoch)
+
+    learner = cntk.adam(net.parameters, lrc, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -105,25 +124,33 @@ def trainNet(loadPath = '', load = False):
         # so that we can have contiguous epoch counters on save&load
         net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
-
-
-#trainNet()
-trainNet('SavedModels/GoNetLeaky_2_47_65_2.472.dnn', True)
-
 def parseArgs():
     parser = ArgumentParser()
 
+    # TOP TODO: Auto load latest saved model
+    global maxEpochs
 
-
-    parser.add_argument('-epochs', help='Max # of epochs to train for', type=int, default=50)
-    parser.add_argument('-lr', help='Set learning rate')
-    parser.add_argument('-Cycle_lr', help='Cycle learning rate between minLr-maxLr (0/1)', type=int, default=0)
-    parser.add_argument('-minLr', help='Minimum learning rate for cycling')
-    parser.add_argument('-maxLr', help='Maximum learning rate for cycling')
-    parser.add_argument('-cycleLen', help='Number of epochs in a learning rate cycle(minLr-maxLr-minLr)', type=int, default=4)
+    parser.add_argument('-epochs', help='Max # of epochs to train for', type=int, default=maxEpochs)
+    parser.add_argument('-lr', help='Set learning rate', type=float, default=defaultLr)
+    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', nargs=3, default=[2,.01,.1])
+    parser.add_argument('-optLr', help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
-
+    parser.add_argument('-load', help="""Load a specific model. Defaults to latest model.
+    If no latest model, will create a new one. If specified will load model of path input""", default='latest')
 
     # TODO: These need better UI's
-    parser.add_argument('-trainFiles', help='# of files to use for training', type=int, default=50)
-    parser.add_argument('-valFiles', help='# of files to use for validation', type=int, default=50)
+    parser.add_argument('-trainFiles', help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
+    parser.add_argument('-valFiles', help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
+
+    args = parser.parse_args()
+
+    # Set default options if the differ
+    maxEpochs = args.epochs
+
+    return args
+
+args = parseArgs()
+trainNet(args)
+
+
+#trainNet('SavedModels/GoNetLeaky_2_47_65_2.472.dnn', True)
