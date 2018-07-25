@@ -41,7 +41,7 @@ def loadModel(args):
 
     return net
 
-def trainNet(args): #loadPath = '', load = False
+def trainNet(args): 
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
@@ -79,14 +79,13 @@ def trainNet(args): #loadPath = '', load = False
 
     lrc = args.lr
     if args.cycleLr[0]:
-        lrc = learningRateCycles(1, args.cycleLr[0], args.cycleLr[1], args.cycleLr[2], gen.stepsPerEpoch*args.cycleLr[0])
+        lrc = learningRateCycles(*args.cycleLr, gen.stepsPerEpoch)
+        lrc = lrc * maxEpochs
     elif args.optLr:
-        lrc = findOptLr(maxEpochs, args.optLr[0], args.optLr[1], gen.stepsPerEpoch)
+        lrc = findOptLr(maxEpochs, *args.optLr, gen.stepsPerEpoch)
 
-
-    lrc = cntk.learners.learning_parameter_schedule(lrc, batchSize, gen.stepsPerEpoch)
-
-    learner = cntk.adam(net.parameters, lrc, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    lrc = cntk.learners.learning_parameter_schedule(lrc, batchSize, batchSize)
+    learner = cntk.adam(net.parameters, lrc, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -122,17 +121,18 @@ def trainNet(args): #loadPath = '', load = False
 
         # TODO: When loading a model, make sure to save it with epoch+previousModelEpoch
         # so that we can have contiguous epoch counters on save&load
-        net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
+        #net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
 
 def parseArgs():
     parser = ArgumentParser()
 
     # TOP TODO: Auto load latest saved model
     global maxEpochs
+    global defaultLr
 
     parser.add_argument('-epochs', help='Max # of epochs to train for', type=int, default=maxEpochs)
     parser.add_argument('-lr', help='Set learning rate', type=float, default=defaultLr)
-    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', nargs=3, default=[2,.01,.1])
+    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', nargs=3, default=[0,.0,.0])
     parser.add_argument('-optLr', help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
     parser.add_argument('-load', help="""Load a specific model. Defaults to latest model.
@@ -146,6 +146,7 @@ def parseArgs():
 
     # Set default options if the differ
     maxEpochs = args.epochs
+    defaultLr = args.lr
 
     return args
 

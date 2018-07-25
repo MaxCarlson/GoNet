@@ -52,15 +52,14 @@ def printAccuracy(net, string, g, numFromGen):
 #
 # Full Cycle length (cycling from min to max, then down to min)
 # is stepMult * itsInEpoch * 2
-def learningRateCycles(maxEpoch, cycleLen, minRate, maxRate, itsInEpoch):
+def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch):
     lrs = []
     stepMult = cycleLen // 2
     stepSize = stepMult * itsInEpoch
-    for ec in range(maxEpoch // stepMult):
-        for it in range(stepSize * 2):
-            cycle   = math.floor(1 + it / (2 * stepSize))
-            x       = math.fabs(it / stepSize - 2 * cycle + 1) 
-            lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
+    for it in range(stepSize * 2):
+        cycle   = math.floor(1 + it / (2 * stepSize))
+        x       = math.fabs(it / stepSize - 2 * cycle + 1) 
+        lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
     return lrs 
 
 # Helper for finding the optimal learning rate
