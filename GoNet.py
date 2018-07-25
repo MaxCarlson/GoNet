@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os
+import re
 import math
 import glob
 import numpy as np
@@ -31,15 +32,17 @@ def findLatestModel(loadName):
 def loadModel(args):
     net       = cntk.placeholder() 
     modelName = findLatestModel(args.load)
+    epochOffset = 0
 
     if modelName != None:
         net = cntk.load_model(modelName)
+        epochOffset = int(modelName[re.search("\d", modelName).start()])
         print('Sucessful load of model', modelName, '\n')
     else:
         net = goNet(inputVar, filters, BoardSize, 2)
         print('Created new network!')
 
-    return net
+    return net, epochOffset
 
 def trainNet(args): 
     
@@ -58,7 +61,7 @@ def trainNet(args):
     policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar    = cntk.ops.input_variable((2), np.float32) 
 
-    net = loadModel(args)
+    net, epochOffset = loadModel(args)
 
     # Show a heatmap of network outputs 
     # over an input board state
@@ -118,10 +121,7 @@ def trainNet(args):
         #policyAccs.append([epoch, policyAcc])
         #valueAccs.append([epoch, valueAcc])   
 
-
-        # TODO: When loading a model, make sure to save it with epoch+previousModelEpoch
-        # so that we can have contiguous epoch counters on save&load
-        #net.save(saveDir + netName + 'Leaky_{}_{}_{}_{:.3f}.dnn'.format(epoch+1, policyAcc, valueAcc, losses[epoch][1]))
+        net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1+epochOffset, policyAcc, valueAcc, losses[epoch][1]))
 
 def parseArgs():
     parser = ArgumentParser()
@@ -129,24 +129,30 @@ def parseArgs():
     # TOP TODO: Auto load latest saved model
     global maxEpochs
     global defaultLr
+    global netName
 
-    parser.add_argument('-epochs', help='Max # of epochs to train for', type=int, default=maxEpochs)
-    parser.add_argument('-lr', help='Set learning rate', type=float, default=defaultLr)
+    parser.add_argument('-epochs',  help='Max # of epochs to train for', type=int, default=maxEpochs)
+    parser.add_argument('-lr',      help='Set learning rate', type=float, default=defaultLr)
     parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', nargs=3, default=[0,.0,.0])
-    parser.add_argument('-optLr', help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
+    parser.add_argument('-optLr',   help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
-    parser.add_argument('-load', help="""Load a specific model. Defaults to latest model.
+    parser.add_argument('-load',    help="""Load a specific model. Defaults to latest model.
     If no latest model, will create a new one. If specified will load model of path input""", default='latest')
+    parser.add_argument('-name', help='Change default name of the network', default=netName)
 
     # TODO: These need better UI's
-    parser.add_argument('-trainFiles', help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
-    parser.add_argument('-valFiles', help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
+    # TODO: What is a better way to pick train/test files automatically by size?
+    # Auto split with input % test vs % train. smallest # files as validation data so we won't run into
+    # previously trained on data if we increase data input size
+    parser.add_argument('-trainFiles',  help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
+    parser.add_argument('-valFiles',    help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
 
     args = parser.parse_args()
 
     # Set default options if the differ
     maxEpochs = args.epochs
     defaultLr = args.lr
+    netName   = args.name
 
     return args
 
