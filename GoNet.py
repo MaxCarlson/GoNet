@@ -5,6 +5,7 @@ import cntk as cntk
 from Net import goNet
 from DataGenerator import Generator
 from NetHeatMap import NetHeatMap
+from argparse import ArgumentParser
 from misc import printAccuracy, learningRateCycles, findOptLr
 from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
@@ -66,7 +67,7 @@ def trainNet(loadPath = '', load = False):
     #cntk.learners.learning_parameter_schedule(lrs, batchSize, gen.stepsPerEpoch*cycleLen)
     #lrs         = findOptLr(1, 0.00001, 0.01, gen.stepsPerEpoch)
     #Current Best 0.0001-0.00025
-    learner     = cntk.adam(net.parameters, 0.0001, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    learner     = cntk.adam(net.parameters, 0.0003, epoch_size=batchSize, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
@@ -107,4 +108,22 @@ def trainNet(loadPath = '', load = False):
 
 
 #trainNet()
-trainNet('SavedModels/GoNetLeaky_1_47_65_2.477.dnn', True)
+trainNet('SavedModels/GoNetLeaky_2_47_65_2.472.dnn', True)
+
+def parseArgs():
+    parser = ArgumentParser()
+
+
+
+    parser.add_argument('-epochs', help='Max # of epochs to train for', type=int, default=50)
+    parser.add_argument('-lr', help='Set learning rate')
+    parser.add_argument('-Cycle_lr', help='Cycle learning rate between minLr-maxLr (0/1)', type=int, default=0)
+    parser.add_argument('-minLr', help='Minimum learning rate for cycling')
+    parser.add_argument('-maxLr', help='Maximum learning rate for cycling')
+    parser.add_argument('-cycleLen', help='Number of epochs in a learning rate cycle(minLr-maxLr-minLr)', type=int, default=4)
+    parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
+
+
+    # TODO: These need better UI's
+    parser.add_argument('-trainFiles', help='# of files to use for training', type=int, default=50)
+    parser.add_argument('-valFiles', help='# of files to use for validation', type=int, default=50)
