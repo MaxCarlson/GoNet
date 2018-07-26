@@ -9,6 +9,7 @@ class NetHeatMap:
         self.gen    = generator
         self.wStn   = plt.imread('./img/whiteStone.png')
         self.bStn   = plt.imread('./img/blackStone.png')
+        self.cross  = plt.imread('./img/x.png')
         self.shp    = np.shape(self.wStn)
 
     def genHeatmap(self, count):
@@ -63,16 +64,16 @@ class NetHeatMap:
             win           = W[i,1]
             predWin       = winVec[1]
             toMove        = X[i,0,0,0]
-            imgIn, imgOut = self.buildImages(X[i], exOut, toMove)
+            imgIn, imgOut = self.buildImages(X[i], np.argmax(Y[i]), exOut, toMove)
             yield imgIn, imgOut, toMove, win, predWin
 
-    def buildImages(self, boards, netOut, toMove):
+    def buildImages(self, boards, move, netOut, toMove):
         # Build the boards with the right color stone based on stm
         stm     = boards[1] if toMove == 0 else boards[1] + boards[1]
         opp     = boards[2] if toMove == 1 else boards[2] + boards[2]
         board   = stm + opp
         boardImg    = np.zeros((BoardLength*self.shp[0],BoardLength*self.shp[1],self.shp[2]))
-        boardImg    = self.buildBoardImg(board, boardImg, toMove)
+        boardImg    = self.buildBoardImg(board, boardImg, move, toMove)
         outImg      = self.buildOutImage(netOut)
         # Remove moves with < 0.5% from heatmap
         #outImg[outImg < 0.005] = np.nan
@@ -86,12 +87,14 @@ class NetHeatMap:
 
     # Build the board image
     # Scale up the input 19x19 'image' to a 19*(stoneImgSize)x19*(stoneImgSize) image
-    def buildBoardImg(self, board, boardImg, toMove):
+    def buildBoardImg(self, board, boardImg, move, toMove):
 
         for x in range(BoardLength):
             for y in range(BoardLength):
                 img = None
-                if board[x, y] == BLACK:
+                if y * BoardLength + x == move:
+                    img = self.cross
+                elif board[x, y] == BLACK:
                     img = self.bStn
                 elif board[x, y] == WHITE:
                     img = self.wStn

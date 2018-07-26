@@ -1,16 +1,16 @@
-from __future__ import print_function
+from __future__     import print_function
 import os
 import re
 import math
 import glob
-import numpy as np
-import cntk as cntk
-from Net import goNet
-from DataGenerator import Generator
-from NetHeatMap import NetHeatMap
-from argparse import ArgumentParser
-from misc import printAccuracy, learningRateCycles, findOptLr
-from Globals import BoardDepth, BoardLength, BoardSize, BoardSizeP
+import numpy        as np
+import cntk         as cntk
+from Net            import goNet
+from NetHeatMap     import NetHeatMap
+from DataGenerator  import Generator
+from argparse       import ArgumentParser
+from misc           import printAccuracy, learningRateCycles, findOptLr
+from Globals        import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
 batchSize = 128
 maxEpochs = 50
@@ -22,7 +22,7 @@ saveDir = './SavedModels/'
 netName = 'GoNet'
 
 def findLatestModel(loadName):
-    latestModel = loadName
+    latestModel = saveDir + loadName
     if loadName == 'latest':
         models = glob.glob(saveDir + '*')
         latestModel = max(models, key=os.path.getctime)
@@ -126,7 +126,8 @@ def trainNet(args):
 def parseArgs():
     parser = ArgumentParser()
 
-    # TOP TODO: Auto load latest saved model
+    # TODO: Create a config file reader!!!
+    # TODO: Auto saving start options to config file!
     global maxEpochs
     global defaultLr
     global netName
@@ -138,7 +139,7 @@ def parseArgs():
     parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
     parser.add_argument('-load',    help="""Load a specific model. Defaults to latest model.
     If no latest model, will create a new one. If specified will load model of path input""", default='latest')
-    parser.add_argument('-name', help='Change default name of the network', default=netName)
+    parser.add_argument('-name',    help='Change default name of the network', default=netName)
 
     # TODO: These need better UI's
     # TODO: What is a better way to pick train/test files automatically by size?

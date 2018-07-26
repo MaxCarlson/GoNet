@@ -1,7 +1,7 @@
 import os
 import random
-import numpy as np
-import tensorflow as tf
+import numpy        as np
+import tensorflow   as tf
 from Globals import BoardSize, BoardLength, BoardDepth, BLACK, WHITE
 import multiprocessing, threading, queue, asyncio
 

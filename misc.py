@@ -1,7 +1,7 @@
 import numpy as np
 import math
-from math import exp, log
-from Globals import BoardLength
+from math       import exp, log
+from Globals    import BoardLength
 import matplotlib.pyplot as plt
 
 

@@ -1,6 +1,6 @@
 import cntk
-from cntk.ops import relu
-from cntk.layers import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
+from cntk.ops       import relu
+from cntk.layers    import MaxPooling, BatchNormalization, Dense, Dropout, Convolution2D
 
 
 def Conv(input, filterShape, filters, activation=True, padding=True):
