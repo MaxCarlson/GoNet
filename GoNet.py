@@ -29,18 +29,18 @@ def findLatestModel(loadName):
     
     return latestModel
 
-def loadModel(args):
+def loadModel(args, inputVar, filters):
     net       = cntk.placeholder() 
     modelName = findLatestModel(args.load)
     epochOffset = 0
 
-    if modelName != None:
+    if modelName == 'new' or modelName == 'New':
+        net = goNet(inputVar, filters, BoardSize, 2)
+        print('Created new network!')
+    elif modelName != None:
         net = cntk.load_model(modelName)
         epochOffset = int(modelName[re.search("\d", modelName).start()])
         print('Sucessful load of model', modelName, '\n')
-    else:
-        net = goNet(inputVar, filters, BoardSize, 2)
-        print('Created new network!')
 
     return net, epochOffset
 
@@ -49,8 +49,8 @@ def trainNet(args):
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
     # TODO: Command line args
-    tFileShp = (0,1)#(0, 743)
-    vFileShp = (5,6)#(744, 745)
+    tFileShp = (0,596)#(0, 743)
+    vFileShp = (597,598)#(744, 745)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
@@ -61,7 +61,7 @@ def trainNet(args):
     policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar    = cntk.ops.input_variable((2), np.float32) 
 
-    net, epochOffset = loadModel(args)
+    net, epochOffset = loadModel(args, inputVar, filters)
 
     # Show a heatmap of network outputs 
     # over an input board state
@@ -133,7 +133,7 @@ def parseArgs():
 
     parser.add_argument('-epochs',  help='Max # of epochs to train for', type=int, default=maxEpochs)
     parser.add_argument('-lr',      help='Set learning rate', type=float, default=defaultLr)
-    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', nargs=3, default=[0,.0,.0])
+    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
     parser.add_argument('-optLr',   help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
     parser.add_argument('-load',    help="""Load a specific model. Defaults to latest model.
@@ -144,12 +144,12 @@ def parseArgs():
     # TODO: What is a better way to pick train/test files automatically by size?
     # Auto split with input % test vs % train. smallest # files as validation data so we won't run into
     # previously trained on data if we increase data input size
-    parser.add_argument('-trainFiles',  help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
-    parser.add_argument('-valFiles',    help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
+    #parser.add_argument('-trainFiles',  help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
+    #parser.add_argument('-valFiles',    help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
 
     args = parser.parse_args()
 
-    # Set default options if the differ
+    # Set default options if they differ
     maxEpochs = args.epochs
     defaultLr = args.lr
     netName   = args.name

@@ -54,6 +54,7 @@ def printAccuracy(net, string, g, numFromGen):
 # is stepMult * itsInEpoch * 2
 def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch):
     lrs = []
+    cycleLen = int(cycleLen)
     stepMult = cycleLen // 2
     stepSize = stepMult * itsInEpoch
     for it in range(stepSize * 2):

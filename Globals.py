@@ -1,7 +1,8 @@
 
 BoardLength = 19
 BoardSize = BoardLength ** 2
-BoardDepth = 7
+InputPlanes = 5
+BoardDepth = 1 + InputPlanes * 2
 
 # Padded board sizes to make things easier to compute
 BoardLengthP = BoardLength + 2

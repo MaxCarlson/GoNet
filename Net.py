@@ -39,10 +39,11 @@ def ValueHead(input, size, vOutSize):
     d1 = Dense(vOutSize, activation=None)(r1)
     return cntk.softmax(d1)
 
+# TODO: Command line args
 def goNet(input, filters, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 10)
+    rs = ResStack(c0, filters, 8)
 
     # TODO: Look into heads output softmax!
     p  = PolicyHead(rs, policyOut)
