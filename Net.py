@@ -21,29 +21,28 @@ def ResStack(input, filters, count):
         inp = ResLayer(inp, filters)
     return inp
 
-# TODO: Possibly apply a softmax to this as well as ValueHead
+# Head of the network that predicts where
+# the expert would move given an of board states
 def PolicyHead(input, pOutSize):
-    pc = Conv(input, (1,1), 2, 1)
-    return Dense(pOutSize, activation=cntk.softmax)(pc) 
+    pc = Conv(input, (1,1), 1, 1)
+    return Dense(pOutSize, activation=None)(pc) 
 
 # One Head of the network for predicting whether
 # an input will result in a win for side to move or not
 def ValueHead(input, size, vOutSize):
     vc = Convolution2D((1,1), 1, activation=None)(input)
     b0 = BatchNormalization()(vc)
-    #dr = Dropout(0.14)(b0)
     r0 = relu(b0)
     d0 = Dense(size, activation=None)(r0)
-    #do = Dropout(0.14)(d0)
     r1 = relu(d0)
     d1 = Dense(vOutSize, activation=None)(r1)
-    return cntk.softmax(d1)
+    return d1
 
 # TODO: Command line args
-def goNet(input, filters, policyOut, valueOut):
+def goNet(input, filters, resLayers, policyOut, valueOut):
 
     c0 = Conv(input, (3,3), filters) 
-    rs = ResStack(c0, filters, 8)
+    rs = ResStack(c0, filters, resLayers)
 
     # TODO: Look into heads output softmax!
     p  = PolicyHead(rs, policyOut)

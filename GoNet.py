@@ -12,30 +12,37 @@ from argparse       import ArgumentParser
 from misc           import printAccuracy, learningRateCycles, findOptLr
 from Globals        import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
-batchSize = 128
-maxEpochs = 50
-defaultLr = 0.01
+batchSize           = 128
+maxEpochs           = 50
+defaultLr           = 0.01
+defaultFileCount    = 598
+resBlockCount       = 10
+netFilters          = 64
 # TODO: Command line args
 featurePath = "./data/features"
 labelPath = "./data/labels"
 saveDir = './SavedModels/'
 netName = 'GoNet'
 
+# TODO: This is a very ugly load system
+# make it better!!
 def findLatestModel(loadName):
-    latestModel = saveDir + loadName
+    latestModel = loadName
+    if loadName != 'New' and loadName != 'new':
+        latestModel = saveDir + loadName
     if loadName == 'latest':
         models = glob.glob(saveDir + '*')
         latestModel = max(models, key=os.path.getctime)
     
     return latestModel
 
-def loadModel(args, inputVar, filters):
+def loadModel(args, inputVar, filters, resBlocks):
     net       = cntk.placeholder() 
     modelName = findLatestModel(args.load)
     epochOffset = 0
 
     if modelName == 'new' or modelName == 'New':
-        net = goNet(inputVar, filters, BoardSize, 2)
+        net = goNet(inputVar, filters, resBlocks, BoardSize, 2)
         print('Created new network!')
     elif modelName != None:
         net = cntk.load_model(modelName)
@@ -49,19 +56,18 @@ def trainNet(args):
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
     # TODO: Command line args
-    tFileShp = (0,596)#(0, 743)
-    vFileShp = (597,598)#(744, 745)
+    tFileShp = (1,598)#(0, 743)
+    vFileShp = (0,1)#(744, 745)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
     vg       = valGen.generator()
 
-    filters     = 64
     inputVar    = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
     policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
     valueVar    = cntk.ops.input_variable((2), np.float32) 
 
-    net, epochOffset = loadModel(args, inputVar, filters)
+    net, epochOffset = loadModel(args, inputVar, netFilters, resBlockCount)
 
     # Show a heatmap of network outputs 
     # over an input board state
@@ -78,7 +84,8 @@ def trainNet(args):
     policyError = cntk.element_not(cntk.classification_error(net.outputs[0], policyVar))
     valueError  = cntk.element_not(cntk.classification_error(net.outputs[1], valueVar))
     #error      = (valueError + policyError) / 2
-    error       = valueError
+    #error       = valueError
+    error       = policyError
 
     lrc = args.lr
     if args.cycleLr[0]:
@@ -121,39 +128,45 @@ def trainNet(args):
         #policyAccs.append([epoch, policyAcc])
         #valueAccs.append([epoch, valueAcc])   
 
+
         net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1+epochOffset, policyAcc, valueAcc, losses[epoch][1]))
+
 
 def parseArgs():
     parser = ArgumentParser()
 
-    # TODO: Create a config file reader!!!
+    # TODO: Replace with a config file reader!!!
     # TODO: Auto saving start options to config file!
     global maxEpochs
     global defaultLr
     global netName
+    global defaultFileCount
+    global resBlockCount
+    global netFilters
 
-    parser.add_argument('-epochs',  help='Max # of epochs to train for', type=int, default=maxEpochs)
-    parser.add_argument('-lr',      help='Set learning rate', type=float, default=defaultLr)
-    parser.add_argument('-cycleLr', help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
-    parser.add_argument('-optLr',   help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
-    parser.add_argument('-heatMap', help='Show network in/outs as heatmap for n examples', type=int, default=0)
-    parser.add_argument('-load',    help="""Load a specific model. Defaults to latest model.
+    parser.add_argument('-epochs',      help='Max # of epochs to train for', type=int, default=maxEpochs)
+    parser.add_argument('-lr',          help='Set learning rate', type=float, default=defaultLr)
+    parser.add_argument('-cycleLr',     help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
+    parser.add_argument('-optLr',       help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
+    parser.add_argument('-heatMap',     help='Show network in/outs as heatmap for n examples', type=int, default=0)
+    parser.add_argument('-load',        help="""Load a specific model. Defaults to latest model.
     If no latest model, will create a new one. If specified will load model of path input""", default='latest')
-    parser.add_argument('-name',    help='Change default name of the network', default=netName)
-
-    # TODO: These need better UI's
-    # TODO: What is a better way to pick train/test files automatically by size?
-    # Auto split with input % test vs % train. smallest # files as validation data so we won't run into
-    # previously trained on data if we increase data input size
-    #parser.add_argument('-trainFiles',  help='Use files between (inp1,inp2) for training', type=int, nargs=2, default=[0,100])
-    #parser.add_argument('-valFiles',    help='Use files between (inp1,inp2) for validation', type=int, nargs=2, default=[100,101])
+    parser.add_argument('-name',        help='Change default name of the network', default=netName)
+    parser.add_argument('-fileCount',   help='Set the number of files used for train+test data', type=int, default=defaultFileCount)
+    parser.add_argument('-split',       help='Set the % split between train and validation data. (0.1 == 10% validation data)', type=float, default=0.1)
+    parser.add_argument('-resBlocks',   help='Number of residual blocks for the new network to use', type=int, default=resBlockCount)
+    parser.add_argument('-filters',     help='Set the number of convolutional filters for the new net to use', type=int, default=netFilters)
 
     args = parser.parse_args()
 
     # Set default options if they differ
-    maxEpochs = args.epochs
-    defaultLr = args.lr
-    netName   = args.name
+    # TODO: Replace with config file
+    maxEpochs           = args.epochs
+    defaultLr           = args.lr
+    netName             = args.name
+    defaultFileCount    = args.fileCount
+    resBlockCount       = args.resBlocks
+    netFilters          = args.filters
 
     return args
 

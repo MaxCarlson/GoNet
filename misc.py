@@ -71,6 +71,8 @@ def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch):
 # instead of relying on tensorboard estimates
 def findOptLr(maxEpoch, minRate, maxRate, itsInEpoch):
     lr       = []
+    minRate  = float(minRate)
+    maxRate  = float(maxRate)
     lnMin    = log(minRate)
     totalIts = itsInEpoch * maxEpoch
     step     = (log(maxRate) - lnMin) / totalIts
