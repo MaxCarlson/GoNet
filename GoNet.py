@@ -28,11 +28,11 @@ netName = 'GoNet'
 # make it better!!
 def findLatestModel(loadName):
     latestModel = loadName
-    if loadName != 'New' and loadName != 'new':
-        latestModel = saveDir + loadName
     if loadName == 'latest':
-        models = glob.glob(saveDir + '*')
+        models = glob.glob(saveDir + '*.dnn')
         latestModel = max(models, key=os.path.getctime)
+    elif loadName != 'New' and loadName != 'new':
+        latestModel = saveDir + loadName
     
     return latestModel
 
@@ -94,7 +94,7 @@ def trainNet(args):
     elif args.optLr:
         lrc = findOptLr(maxEpochs, *args.optLr, gen.stepsPerEpoch)
 
-    lrc = cntk.learners.learning_parameter_schedule(lrc, batchSize, batchSize)
+    lrc     = cntk.learners.learning_parameter_schedule(lrc, batchSize, batchSize)
     learner = cntk.adam(net.parameters, lrc, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
 
     #cntk.logging.TrainingSummaryProgressCallback()
@@ -135,7 +135,8 @@ def trainNet(args):
 def parseArgs():
     parser = ArgumentParser()
 
-    # TODO: Replace with a config file reader!!!
+    # TODO: Replace these globals with a config file reader!!!
+    # As well as a config manager for multiple networks (so we can easily choose at start which net to boot from)
     # TODO: Auto saving start options to config file!
     global maxEpochs
     global defaultLr
@@ -172,6 +173,3 @@ def parseArgs():
 
 args = parseArgs()
 trainNet(args)
-
-
-#trainNet('SavedModels/GoNetLeaky_2_47_65_2.472.dnn', True)
