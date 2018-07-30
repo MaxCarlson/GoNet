@@ -20,9 +20,9 @@ resBlockCount       = 10
 netFilters          = 64
 # TODO: Command line args
 featurePath = "./data/features"
-labelPath = "./data/labels"
-saveDir = './SavedModels/'
-netName = 'GoNet'
+labelPath   = "./data/labels"
+saveDir     = './SavedModels/'
+netName     = 'GoNet'
 
 # TODO: This is a very ugly load system
 # make it better!!
@@ -31,22 +31,23 @@ def findLatestModel(loadName):
     if loadName == 'latest':
         models = glob.glob(saveDir + '*.dnn')
         latestModel = max(models, key=os.path.getctime)
-    elif loadName != 'New' and loadName != 'new':
+    elif loadName.lower() != 'new':
         latestModel = saveDir + loadName
     
     return latestModel
 
 def loadModel(args, inputVar, filters, resBlocks):
-    net       = cntk.placeholder() 
-    modelName = findLatestModel(args.load)
     epochOffset = 0
+    net         = cntk.placeholder() 
+    modelName   = findLatestModel(args.load)
 
-    if modelName == 'new' or modelName == 'New':
+    if modelName.lower() == 'new':
         net = goNet(inputVar, filters, resBlocks, BoardSize, 2)
         print('Created new network!')
     elif modelName != None:
-        net = cntk.load_model(modelName)
-        epochOffset = int(modelName[re.search("\d", modelName).start()])
+        net         = cntk.load_model(modelName)
+        reSearch    = re.search("\d+", modelName)
+        epochOffset = int(modelName[reSearch.start():reSearch.end()])
         print('Sucessful load of model', modelName, '\n')
 
     return net, epochOffset
@@ -96,10 +97,11 @@ def trainNet(args):
 
     lrc     = cntk.learners.learning_parameter_schedule(lrc, batchSize, batchSize)
     learner = cntk.adam(net.parameters, lrc, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
+    #learner = cntk.adadelta(net.parameters, lrc, l2_regularization_weight=0.0001) # Test adelta out!
 
     #cntk.logging.TrainingSummaryProgressCallback()
     #cntk.CrossValidationConfig()
-
+    
     # TODO: Figure out how to write multiple 'metrics'
     tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=1, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
