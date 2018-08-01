@@ -18,6 +18,7 @@ defaultLr           = 0.01
 defaultFileCount    = 598
 resBlockCount       = 10
 netFilters          = 64
+checkpointFreq      = 10
 # TODO: Command line args
 featurePath = "./data/features"
 labelPath   = "./data/labels"
@@ -53,6 +54,9 @@ def loadModel(args, inputVar, filters, resBlocks):
     return net, epochOffset
 
 def trainNet(args): 
+
+    # Let's snag the error the next time it occurs
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
@@ -106,21 +110,31 @@ def trainNet(args):
     tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=1, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
     trainer         = cntk.Trainer(net, (loss, error), learner, [progressPrinter, tbWriter])
+
+    # TODO: Replace model load with loading/saving checkpoints!
+    # So we can store learners state et al
+    #trainer.restore_from_checkpoint(findLatestModel('latest'))
+    checkpointFreq = gen.stepsPerEpoch // checkpointFreq
     
     ls          = []
     losses      = []
     #valueAccs   = []
     #policyAccs  = []
 
+    checkCount = 0
     for epoch in range(maxEpochs):
         
+        checkIt = 0
         miniBatches = 0
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
             miniBatches += 1 
             trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) 
             ls.append(trainer.previous_minibatch_loss_average)
-
+            if checkIt >= checkpointFreq:
+                checkCount += 1
+                trainer.save_checkpoint(saveDir + netName + '{}_{}.chk'.format(epoch + epochOffset, checkCount))
+                checkIt = 0
 
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
@@ -129,7 +143,6 @@ def trainNet(args):
         ls.clear()
         #policyAccs.append([epoch, policyAcc])
         #valueAccs.append([epoch, valueAcc])   
-
 
         net.save(saveDir + netName + '_{}_{}_{}_{:.3f}.dnn'.format(epoch+1+epochOffset, policyAcc, valueAcc, losses[epoch][1]))
 
@@ -146,8 +159,10 @@ def parseArgs():
     global defaultFileCount
     global resBlockCount
     global netFilters
+    global checkpointFreq
 
     parser.add_argument('-epochs',      help='Max # of epochs to train for', type=int, default=maxEpochs)
+    parser.add_argument('-checks',      help='How often through an epoch should we save checkpoints 11 =~ 11 checkpoints an epoch', type=int, default=checkpointFreq)
     parser.add_argument('-lr',          help='Set learning rate', type=float, default=defaultLr)
     parser.add_argument('-cycleLr',     help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
     parser.add_argument('-cycleMax',    help='Start the learning rate cycle at max instead of min', type=bool, default=False)
@@ -166,6 +181,7 @@ def parseArgs():
     # Set default options if they differ
     # TODO: Replace with config file
     maxEpochs           = args.epochs
+    checkpointFreq      = args.checks
     defaultLr           = args.lr
     netName             = args.name
     defaultFileCount    = args.fileCount
