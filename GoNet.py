@@ -90,7 +90,7 @@ def trainNet(args):
 
     lrc = args.lr
     if args.cycleLr[0]:
-        lrc = learningRateCycles(*args.cycleLr, gen.stepsPerEpoch)
+        lrc = learningRateCycles(*args.cycleLr, gen.stepsPerEpoch, args.cycleMax)
         lrc = lrc * maxEpochs
     elif args.optLr:
         lrc = findOptLr(maxEpochs, *args.optLr, gen.stepsPerEpoch)
@@ -150,6 +150,7 @@ def parseArgs():
     parser.add_argument('-epochs',      help='Max # of epochs to train for', type=int, default=maxEpochs)
     parser.add_argument('-lr',          help='Set learning rate', type=float, default=defaultLr)
     parser.add_argument('-cycleLr',     help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
+    parser.add_argument('-cycleMax',    help='Start the learning rate cycle at max instead of min', type=bool, default=False)
     parser.add_argument('-optLr',       help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap',     help='Show network in/outs as heatmap for n examples', type=int, default=0)
     parser.add_argument('-load',        help="""Load a specific model. Defaults to latest model.

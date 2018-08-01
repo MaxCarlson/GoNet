@@ -49,3 +49,21 @@ def goNet(input, filters, resLayers, policyOut, valueOut):
     v  = ValueHead(rs, 128, valueOut)
     
     return cntk.combine(p, v)
+
+
+
+
+
+
+
+
+
+
+"""
+# Super small network I'll keep here as I've had to use this to 
+# test enough bugs to make sure they're not from CTNK
+input       = cntk.ops.input_variable((1, 10, 10), np.float32, name='features')
+l1          = cntk.layers.Convolution2D((3, 3), 10, activation=cntk.relu, pad=True)(input)
+net         = cntk.layers.Dense((10), activation=cntk.softmax)(l1)
+net.save('Test.dnn')
+"""

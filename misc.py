@@ -47,12 +47,9 @@ def printAccuracy(net, string, g, numFromGen):
 #
 # Doesn't handle permanant decreases in learning rate 
 #
-# TODO: Figure out how to cycle learning rates
-# without using huge amount of memory i.e: integrate with cntk.lr_scheduler
-#
 # Full Cycle length (cycling from min to max, then down to min)
 # is stepMult * itsInEpoch * 2
-def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch):
+def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch, startMax = True):
     lrs = []
     cycleLen = int(cycleLen)
     stepMult = cycleLen // 2
@@ -61,6 +58,14 @@ def learningRateCycles(cycleLen, minRate, maxRate, itsInEpoch):
         cycle   = math.floor(1 + it / (2 * stepSize))
         x       = math.fabs(it / stepSize - 2 * cycle + 1) 
         lrs.append(minRate + (maxRate - minRate) * max(0, 1-x))
+
+    # Start at the high end of the cycle. 
+    # This is useful if we crashed/stopped after the first half
+    # of a cycle. 
+    # TODO: This should be saved and loaded info with the model instead of manually determined
+    if startMax:
+        lrs = lrs[stepSize:stepSize*2] + lrs[0:stepSize]
+
     return lrs 
 
 # Helper for finding the optimal learning rate
