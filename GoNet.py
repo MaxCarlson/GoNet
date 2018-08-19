@@ -18,7 +18,6 @@ defaultLr           = 0.01
 defaultFileCount    = 598
 resBlockCount       = 10
 netFilters          = 64
-checkpointFreq      = 10
 # TODO: Command line args
 featurePath = "./data/features"
 labelPath   = "./data/labels"
@@ -37,6 +36,15 @@ def findLatestModel(loadName):
     
     return latestModel
 
+# TODO: possibly switch over to a checkpoint based load system
+# as we crash enough to make it worth the saved progress benefit
+#def findLatestCheckpoint():
+#    chkpnts = glob.glob(saveDir + '*.chk')
+#    latest  = max(chkpnts, key=os.path.getctime)
+#    return latest
+
+# TODO: Redo this load system, possibly switch to checkpoints,
+# as it's super ugly!
 def loadModel(args, inputVar, filters, resBlocks):
     epochOffset = 0
     net         = cntk.placeholder() 
@@ -55,22 +63,29 @@ def loadModel(args, inputVar, filters, resBlocks):
 
 def trainNet(args): 
 
-    # Let's snag the error the next time it occurs
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    # Crash doesn't seem to occur with this flag,
+    # unfortunatly, it reduces training speed by about 35%
+    #os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     
     # Instantiate generators for both training and
     # validation datasets. Grab their generator functions
     # TODO: Command line args
-    tFileShp = (1,598)#(0, 743)
-    vFileShp = (0,1)#(744, 745)
+    # TODO: Better system for using files testing/validation than ranges?
+    tFileShp = (1,3)
+    vFileShp = (0,1)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
     g        = gen.generator()
     vg       = valGen.generator()
 
-    inputVar    = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), np.float32, name='features')
-    policyVar   = cntk.ops.input_variable((BoardSize), np.float32)
-    valueVar    = cntk.ops.input_variable((2), np.float32) 
+    inputVar    = cntk.ops.input_variable((BoardDepth, BoardLength, BoardLength), name='features')
+    policyVar   = cntk.ops.input_variable((BoardSize))
+    valueVar    = cntk.ops.input_variable((2)) 
+
+    if args.fp16:
+        cntk.cast(inputVar,  dtype=np.float16)
+        cntk.cast(policyVar, dtype=np.float16)
+        cntk.cast(valueVar,  dtype=np.float16)
 
     net, epochOffset = loadModel(args, inputVar, netFilters, resBlockCount)
 
@@ -92,6 +107,11 @@ def trainNet(args):
     #error       = valueError
     error       = policyError
 
+    if args.fp16:
+        loss = cntk.cast(loss, dtype=np.float32)
+        error = cntk.cast(error, dtype=np.float32)
+
+
     lrc = args.lr
     if args.cycleLr[0]:
         lrc = learningRateCycles(*args.cycleLr, gen.stepsPerEpoch, args.cycleMax)
@@ -103,9 +123,6 @@ def trainNet(args):
     learner = cntk.adam(net.parameters, lrc, momentum=0.9, minibatch_size=batchSize, l2_regularization_weight=0.0001) 
     #learner = cntk.adadelta(net.parameters, lrc, l2_regularization_weight=0.0001) # Test adelta out!
 
-    #cntk.logging.TrainingSummaryProgressCallback()
-    #cntk.CrossValidationConfig()
-    
     # TODO: Figure out how to write multiple 'metrics'
     tbWriter        = cntk.logging.TensorBoardProgressWriter(freq=1, log_dir='./TensorBoard/', model=net)
     progressPrinter = cntk.logging.ProgressPrinter(tag='Training', num_epochs=maxEpochs)   
@@ -114,27 +131,21 @@ def trainNet(args):
     # TODO: Replace model load with loading/saving checkpoints!
     # So we can store learners state et al
     #trainer.restore_from_checkpoint(findLatestModel('latest'))
-    checkpointFreq = gen.stepsPerEpoch // checkpointFreq
+    #checkpointFreq = gen.stepsPerEpoch // checkpointFreq
     
     ls          = []
     losses      = []
     #valueAccs   = []
     #policyAccs  = []
 
-    checkCount = 0
     for epoch in range(maxEpochs):
         
-        checkIt = 0
         miniBatches = 0
         while miniBatches < gen.stepsPerEpoch:
             X, Y, W = next(g)
             miniBatches += 1 
-            trainer.train_minibatch({net.arguments[0] : X, policyVar : Y, valueVar : W}) 
+            trainer.train_minibatch({ net.arguments[0] : X, policyVar : Y, valueVar : W }) 
             ls.append(trainer.previous_minibatch_loss_average)
-            if checkIt >= checkpointFreq:
-                checkCount += 1
-                trainer.save_checkpoint(saveDir + netName + '{}_{}.chk'.format(epoch + epochOffset, checkCount))
-                checkIt = 0
 
         trainer.summarize_training_progress()
         policyAcc, valueAcc = printAccuracy(net, 'Validation Acc %', vg, valGen.stepsPerEpoch)
@@ -159,29 +170,31 @@ def parseArgs():
     global defaultFileCount
     global resBlockCount
     global netFilters
-    global checkpointFreq
 
     parser.add_argument('-epochs',      help='Max # of epochs to train for', type=int, default=maxEpochs)
-    parser.add_argument('-checks',      help='How often through an epoch should we save checkpoints 11 =~ 11 checkpoints an epoch', type=int, default=checkpointFreq)
     parser.add_argument('-lr',          help='Set learning rate', type=float, default=defaultLr)
     parser.add_argument('-cycleLr',     help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
     parser.add_argument('-cycleMax',    help='Start the learning rate cycle at max instead of min', type=bool, default=False)
     parser.add_argument('-optLr',       help='Find the optimal lr. (minLr, maxLr)', nargs=2, default=None)
     parser.add_argument('-heatMap',     help='Show network in/outs as heatmap for n examples', type=int, default=0)
-    parser.add_argument('-load',        help="""Load a specific model. Defaults to latest model.
+    parser.add_argument('-load',       help="""Load a specific model. Defaults to latest model.
     If no latest model, will create a new one. If specified will load model of path input""", default='latest')
     parser.add_argument('-name',        help='Change default name of the network', default=netName)
     parser.add_argument('-fileCount',   help='Set the number of files used for train+test data', type=int, default=defaultFileCount)
     parser.add_argument('-split',       help='Set the % split between train and validation data. (0.1 == 10% validation data)', type=float, default=0.1)
     parser.add_argument('-resBlocks',   help='Number of residual blocks for the new network to use', type=int, default=resBlockCount)
     parser.add_argument('-filters',     help='Set the number of convolutional filters for the new net to use', type=int, default=netFilters)
+    parser.add_argument('-fp16',        help="Create a network using fp16 instead of fp32. Defaults to 0.", type=int, default=0)
+
+    # TODO: Add in checkpoints as default storage method
+    #parser.add_argument('-loadC',       help='Load the latest checkpoint if it exists', type=bool, default=False)
+    #parser.add_argument('-checks',      help='How often through an epoch should we save checkpoints 11 =~ 11 checkpoints an epoch', type=int, default=checkpointFreq)
 
     args = parser.parse_args()
 
     # Set default options if they differ
     # TODO: Replace with config file
     maxEpochs           = args.epochs
-    checkpointFreq      = args.checks
     defaultLr           = args.lr
     netName             = args.name
     defaultFileCount    = args.fileCount
