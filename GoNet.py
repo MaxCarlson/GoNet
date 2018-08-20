@@ -12,7 +12,7 @@ from argparse       import ArgumentParser
 from misc           import printAccuracy, learningRateCycles, findOptLr
 from Globals        import BoardDepth, BoardLength, BoardSize, BoardSizeP
 
-batchSize           = 128
+batchSize           = 64
 maxEpochs           = 50
 defaultLr           = 0.01
 defaultFileCount    = 598
@@ -71,7 +71,7 @@ def trainNet(args):
     # validation datasets. Grab their generator functions
     # TODO: Command line args
     # TODO: Better system for using files testing/validation than ranges?
-    tFileShp = (1,3)
+    tFileShp = (1,598)
     vFileShp = (0,1)
     gen      = Generator(featurePath, labelPath, tFileShp, batchSize, loadSize=3)
     valGen   = Generator(featurePath, labelPath, vFileShp, batchSize, loadSize=1)
@@ -165,6 +165,7 @@ def parseArgs():
     # As well as a config manager for multiple networks (so we can easily choose at start which net to boot from)
     # TODO: Auto saving start options to config file!
     global maxEpochs
+    global batchSize
     global defaultLr
     global netName
     global defaultFileCount
@@ -172,6 +173,7 @@ def parseArgs():
     global netFilters
 
     parser.add_argument('-epochs',      help='Max # of epochs to train for', type=int, default=maxEpochs)
+    parser.add_argument('-batch',       help='Set the batch size you wish the model to be trained on.', type=int, default=batchSize)
     parser.add_argument('-lr',          help='Set learning rate', type=float, default=defaultLr)
     parser.add_argument('-cycleLr',     help='Cycle learning rate between inp1-inp2, input 0 is cycle length', type=float, nargs=3, default=[0,.0,.0])
     parser.add_argument('-cycleMax',    help='Start the learning rate cycle at max instead of min', type=bool, default=False)
@@ -195,6 +197,7 @@ def parseArgs():
     # Set default options if they differ
     # TODO: Replace with config file
     maxEpochs           = args.epochs
+    batchSize           = args.batch
     defaultLr           = args.lr
     netName             = args.name
     defaultFileCount    = args.fileCount
