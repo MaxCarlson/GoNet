@@ -7,10 +7,10 @@ Policy Head ~50%
 Value Head  ~70%
 
 ### Visual Examples 
-Heat map of networks PolicyHead outputs over an input board state. Also includes ValueHeads winner prediction, as well as the real winner of the professional game. Generated using the NetHeatMap class.
+Heat map of networks PolicyHead outputs over an input board state. Includes ValueHeads winner prediction, as well as the real winner of the professional game. Generated using the NetHeatMap class.
 ![](https://raw.githubusercontent.com/MaxCarlson/GoNet/master/img/Examples/NetInOut.PNG)
 
-Not captured in these examples is the boards encoding as binary feature planes. Also, the network takes an input of the current board state plus two previous states.
+
 ![](https://raw.githubusercontent.com/MaxCarlson/GoNet/master/img/Examples/NetInOut1.PNG)
 
 
